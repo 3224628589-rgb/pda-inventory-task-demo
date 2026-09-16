@@ -4,9 +4,9 @@
 
 ## 在线体验
 
-- 入口：`/#/mine`
-- 任务列表：`/#/tasks`
-- 100 行任务：`/#/task/t100`
-- 真实货位样本：`/#/task/treal`
+- [入口](https://3224628589-rgb.github.io/pda-inventory-task-demo/#/mine)
+- [任务列表](https://3224628589-rgb.github.io/pda-inventory-task-demo/#/tasks)
+- [100 行任务](https://3224628589-rgb.github.io/pda-inventory-task-demo/#/task/t100)
+- [真实货位样本](https://3224628589-rgb.github.io/pda-inventory-task-demo/#/task/treal)
 
-真实样本已移除门店标识和内部 ID，页面仅包含本地图片文件，不包含数据库连接信息或图片签名链接。
+真实样本已移除门店标识和内部 ID，商品图片统一取 `surface=4` 的正面图。页面仅包含本地图片文件，不包含数据库连接信息或图片签名链接。
