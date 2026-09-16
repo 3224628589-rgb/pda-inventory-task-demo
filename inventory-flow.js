@@ -3,13 +3,13 @@ import {orderedLines,quantityError,timeText,variance} from './data.js';
 export const InventoryFlow={
  props:['task'],emits:['notice','finished'],
  setup(props,{emit}){
-  const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),busy=ref(false),error=ref(''),search=ref(''),searchInput=ref(null),searchIndex=ref(-1);
+  const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),busy=ref(false),error=ref(''),search=ref(''),searchQuery=ref(''),searchInput=ref(null),searchIndex=ref(-1);
   const summary=ref(null),summaryOpen=ref(true);
   const stage=ref(null),scrubbing=ref(false),scrubKey=ref(''),guideTop=ref(0);
   const groups=computed(()=>{const all=orderedLines(props.task),out=[];for(const done of [true,false]){const map=new Map();for(const line of all.filter(l=>(l.countedAt!==null)===done)){const key=(done?'done:':'todo:')+line.slot;if(!map.has(key)){const g={key,slot:line.slot,done,lines:[]};map.set(key,g);out.push(g)}map.get(key).lines.push(line)}}return out});
   const keyFor=l=>(l.countedAt!==null?'done:':'todo:')+l.slot;
   const activeGroup=computed(()=>groups.value.find(g=>g.key===expanded.value));
-  const searchMatches=computed(()=>{const q=search.value.trim().toLowerCase();return q?orderedLines(props.task).filter(l=>[l.slot,l.name,l.spec,l.batch,l.barcode].some(value=>String(value||'').toLowerCase().includes(q))):[]});
+  const searchMatches=computed(()=>{const q=searchQuery.value.toLowerCase();return q?orderedLines(props.task).filter(l=>[l.slot,l.name,l.spec,l.batch,l.barcode].some(value=>String(value||'').toLowerCase().includes(q))):[]});
   const searchPosition=computed(()=>searchIndex.value<0||!searchMatches.value.length?0:searchIndex.value+1);
   const visibleLines=g=>expanded.value===g.key?g.lines:g.done?g.lines.filter(l=>l.after!==l.before):[];
   const value=l=>props.task.drafts[l.id]??String(l.before);
@@ -83,13 +83,12 @@ export const InventoryFlow={
   function recount(g){if(!selected.value.length||busy.value)return;const ids=[...selected.value];change(()=>{for(const l of g.lines.filter(l=>ids.includes(l.id))){l.before=l.stockQuantity??l.after;l.recordBefore=null;l.after=null;l.countedAt=null;delete props.task.drafts[l.id]}props.task.completedAt=null;const next=orderedLines(props.task).find(l=>ids.includes(l.id));expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id});emit('notice','已转为待盘点，重新核对实物数量')}
   function jumpToSearch(index){
    const matches=searchMatches.value;if(!matches.length){searchIndex.value=-1;emit('notice','未找到匹配的货位、商品或批次');return}
-   searchIndex.value=(index+matches.length)%matches.length;const l=matches[searchIndex.value];collapseSummary();activate(groups.value.find(g=>g.key===keyFor(l)),l);
+   searchInput.value?.blur();searchIndex.value=(index+matches.length)%matches.length;const l=matches[searchIndex.value];collapseSummary();activate(groups.value.find(g=>g.key===keyFor(l)),l);
   }
-  function searchHit(){if(!search.value.trim()){searchInput.value?.focus();return}jumpToSearch(0)}
-  function searchMove(step){if(!search.value.trim()){searchInput.value?.focus();return}jumpToSearch(searchIndex.value<0?(step<0?searchMatches.value.length-1:0):searchIndex.value+step)}
-  function searchKey(event){if(event.key==='Enter'){event.preventDefault();searchMove(event.shiftKey?-1:1)}else if(event.key==='Escape'){search.value='';searchIndex.value=-1;event.currentTarget.blur()}}
-  function globalFind(event){if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='f'){event.preventDefault();searchInput.value?.focus();searchInput.value?.select()}}
-  const isSearchMatch=l=>!!search.value.trim()&&searchMatches.value.some(match=>match.id===l.id);
+  function searchHit(){const q=search.value.trim();if(!q){searchInput.value?.focus();return}searchQuery.value=q;searchIndex.value=-1;nextTick(()=>jumpToSearch(0))}
+  function searchMove(step){if(!searchQuery.value){searchHit();return}jumpToSearch(searchIndex.value<0?(step<0?searchMatches.value.length-1:0):searchIndex.value+step)}
+  function clearSearch(){search.value='';searchQuery.value='';searchIndex.value=-1;error.value='';searchInput.value?.focus()}
+  const isSearchMatch=l=>!!searchQuery.value&&searchMatches.value.some(match=>match.id===l.id);
   const groupSearchMatches=g=>g.lines.filter(isSearchMatch).length;
   const editing=()=>document.activeElement?.tagName==='INPUT';
   // Browsing feedback is separate from the committed expanded card.
@@ -129,12 +128,12 @@ export const InventoryFlow={
    clearTimeout(scrollTimer);if(!touching)scrollTimer=setTimeout(finishScrub,220);
   }
   function sort(){collapseSummary();change(()=>{props.task.direction=props.task.direction==='asc'?'desc':'asc'})}
-  watch(search,()=>searchIndex.value=-1);
-  onMounted(()=>{document.addEventListener('keydown',globalFind,true);updateSpacing();spaceObserver=new ResizeObserver(updateSpacing);spaceObserver.observe(stage.value);const l=orderedLines(props.task).find(l=>l.countedAt===null)||orderedLines(props.task)[0];if(l){expanded.value=keyFor(l);current.value=l.countedAt===null?l.id:'';props.task.current=current.value||null;center(motion,true)}});
-  onUnmounted(()=>{document.removeEventListener('keydown',globalFind,true);alive=false;spaceObserver?.disconnect();stop();clearTimeout(scrollTimer);cancelAnimationFrame(scanFrame)});
-  return{list,summary,summaryOpen,collapseSummary,expandSummary,stage,scrubbing,scrubKey,guideTop,groups,expanded,current,selected,busy,error,search,searchInput,searchMatches,searchPosition,visibleLines,value,activate,draft,focus,blur,complete,toggle,selectAll,recount,searchHit,searchMove,searchKey,isSearchMatch,groupSearchMatches,gesture,touchStart,touchEnd,settle,sort,timeText,variance};
+  watch(search,()=>{searchIndex.value=-1;searchQuery.value=''});
+  onMounted(()=>{updateSpacing();spaceObserver=new ResizeObserver(updateSpacing);spaceObserver.observe(stage.value);const l=orderedLines(props.task).find(l=>l.countedAt===null)||orderedLines(props.task)[0];if(l){expanded.value=keyFor(l);current.value=l.countedAt===null?l.id:'';props.task.current=current.value||null;center(motion,true)}});
+  onUnmounted(()=>{alive=false;spaceObserver?.disconnect();stop();clearTimeout(scrollTimer);cancelAnimationFrame(scanFrame)});
+  return{list,summary,summaryOpen,collapseSummary,expandSummary,stage,scrubbing,scrubKey,guideTop,groups,expanded,current,selected,busy,error,search,searchQuery,searchInput,searchMatches,searchPosition,visibleLines,value,activate,draft,focus,blur,complete,toggle,selectAll,recount,searchHit,searchMove,clearSearch,isSearchMatch,groupSearchMatches,gesture,touchStart,touchEnd,settle,sort,timeText,variance};
  },
- template:`<div ref="summary" class="task-summary-collapse" :class="{'is-collapsed':!summaryOpen}" :aria-hidden="!summaryOpen" :inert="!summaryOpen?true:undefined"><slot name="summary"/></div><button v-if="!summaryOpen" class="summary-divider" @click="expandSummary" aria-label="展开任务信息"><span>任务信息</span><i>⌄</i></button><div class="flow-tools"><form @submit.prevent="searchHit"><input ref="searchInput" v-model="search" @keydown="searchKey" placeholder="货位 / 商品 / 批次 / 条码" aria-label="搜索任务明细"><span v-if="search.trim()" class="find-count" aria-live="polite">{{searchPosition}}/{{searchMatches.length}}</span><button v-if="search.trim()" type="button" class="find-step" @click="searchMove(-1)" aria-label="上一个搜索结果">↑</button><button v-if="search.trim()" type="button" class="find-step" @click="searchMove(1)" aria-label="下一个搜索结果">↓</button><button type="submit" class="find-submit">搜索</button></form><button @click="sort" aria-label="切换货位排序">{{task.direction==='asc'?'A→Z':'Z→A'}} ⇅</button></div>
+ template:`<div ref="summary" class="task-summary-collapse" :class="{'is-collapsed':!summaryOpen}" :aria-hidden="!summaryOpen" :inert="!summaryOpen?true:undefined"><slot name="summary"/></div><button v-if="!summaryOpen" class="summary-divider" @click="expandSummary" aria-label="展开任务信息"><span>任务信息</span><i>⌄</i></button><div class="flow-tools"><form @submit.prevent="searchHit"><input ref="searchInput" v-model="search" placeholder="货位 / 商品 / 批次 / 条码" aria-label="搜索任务明细" inputmode="search" enterkeyhint="search" autocomplete="off"><button v-if="search" type="button" class="find-clear" @click="clearSearch" aria-label="清空任务搜索"><img src="./assets/m_icon_clear.webp" alt=""></button><span v-if="searchQuery" class="find-count" aria-live="polite">{{searchPosition}}/{{searchMatches.length}}</span><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(-1)" aria-label="上一个搜索结果">↑</button><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(1)" aria-label="下一个搜索结果">↓</button><button type="submit" class="find-submit">搜索</button></form><button @click="sort" aria-label="切换货位排序">{{task.direction==='asc'?'A→Z':'Z→A'}} ⇅</button></div>
  <div class="inventory-scroll-stage" ref="stage" :class="{'is-scrubbing':scrubbing}"><div v-if="scrubbing" class="scrub-guide" :style="{top:guideTop+'px'}" aria-hidden="true"></div><main class="page-scroll slot-list" ref="list" @click.capture="collapseSummary" @focusin.capture="collapseSummary" @input.capture="collapseSummary" @keydown.capture="collapseSummary" @wheel.capture.passive="collapseSummary" @touchstart.capture.passive="collapseSummary" @wheel.passive="gesture" @touchstart.passive="touchStart" @touchend.passive="touchEnd" @touchcancel.passive="touchEnd" @scroll.passive="settle" aria-label="盘点明细" :aria-busy="busy">
  <article v-for="g in groups" :key="g.key" :data-group="g.key" class="slot-group" :class="{'group-done':g.done,'group-open':expanded===g.key,'is-scrub-target':scrubbing&&scrubKey===g.key,'is-search-match':groupSearchMatches(g)>0}">
   <header class="slot-head"><button v-if="g.done&&expanded===g.key" class="check-circle" :class="{checked:g.lines.every(l=>selected.includes(l.id))}" @click="selectAll(g)" aria-label="全选该货位批次">{{g.lines.every(l=>selected.includes(l.id))?'✓':''}}</button><button class="slot-toggle" @click="activate(g)" :aria-expanded="expanded===g.key"><strong>{{g.slot}}</strong><span class="slot-status">{{g.done?'已盘点':'待盘点'}}<small v-if="groupSearchMatches(g)"> · {{groupSearchMatches(g)}}处</small></span></button></header>
