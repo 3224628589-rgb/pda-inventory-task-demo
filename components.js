@@ -2,8 +2,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from './vendor/vue.js
 import { countdown, doneCount, isDone, timeText, variance, taskTitle, dateText } from './data.js';
 
 export const PdaNav = {
-  props: ['title', 'back'], emits:['back'],
-  template:`<header class="pda-nav"><button v-if="back" class="icon-button nav-back" aria-label="返回" @click="$emit('back')"><img src="./assets/m_arrow_left_black_activity.webp" alt=""></button><h1>{{title}}</h1><slot /></header>`
+  props: ['title', 'back', 'action'], emits:['back','action'],
+  template:`<header class="pda-nav"><button v-if="back" class="icon-button nav-back" aria-label="返回" @click="$emit('back')"><img src="./assets/m_arrow_left_black_activity.webp" alt=""></button><h1>{{title}}</h1><button v-if="action" class="nav-action" @click="$emit('action')">{{action}}</button><slot /></header>`
 };
 export const GradientButton = {props:['disabled','type'],emits:['click'],template:`<button class="gradient-button" :type="type || 'button'" :disabled="disabled" @click="$emit('click',$event)"><slot/></button>`};
 export const EmptyState = {props:['text'],template:`<div class="empty-state"><img src="./assets/m_hint_empty.webp" alt=""><p>{{text}}</p><slot/></div>`};
@@ -14,7 +14,7 @@ export const SearchField = {
 export const TaskCard = {
   props:['task','now'], emits:['open'],
   setup(){return{countdown,doneCount,isDone,timeText,taskTitle,dateText}},
-  template:`<button class="task-card" :data-task="task.id" @click="$emit('open',task.id)"><h2>{{taskTitle(task)}}</h2><div class="task-meta row between"><span>已盘 {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">完成于{{timeText(task.completedAt,true).slice(0,-3)}}</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div><div class="task-bottom"><span>创建于{{dateText(task.createdAt)}}——截止{{dateText(task.deadline)}}</span><span class="task-link">{{isDone(task)?'查看详情':doneCount(task)?'继续盘点':'开始盘点'}}<span class="chevron">›</span></span></div></button>`
+  template:`<button class="task-card" :data-task="task.id" @click="$emit('open',task.id)"><h2>{{taskTitle(task)}}</h2><div class="task-meta row between"><span>已盘 {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">完成于{{timeText(task.completedAt,true).slice(0,-3)}}</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div><div class="task-bottom"><span>创建于{{dateText(task.createdAt)}}——截止{{dateText(task.deadline)}}</span><span class="task-link">{{isDone(task)?'查看详情':doneCount(task)===task.lines.length?'提交任务':doneCount(task)?'继续盘点':'开始盘点'}}<span class="chevron">›</span></span></div></button>`
 };
 export const InventoryCard = {
   props:['line','active','index','draft','error','readonly','busy'], emits:['select','draft','complete'],
