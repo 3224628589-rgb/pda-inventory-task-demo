@@ -1,8 +1,8 @@
-import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js';
-import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js';
-import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js';
+import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.09.17.1';
+import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.09.17.1';
+import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.09.17.1';
 
-import { InventoryFlow } from './inventory-flow.js';
+import { InventoryFlow } from './inventory-flow.js?v=2026.09.17.1';
 const SESSION_KEY = 'pda-inventory-v3';
 function readState() {
   let state;
@@ -31,13 +31,14 @@ function readState() {
 createApp({
   components:{PdaNav,GradientButton,EmptyState,SearchField,TaskCard,InventoryCard,BottomSheet,InventoryFlow},
   setup(){
+    const release=window.PDA_DEMO_RELEASE||{version:'未登记',releasedAt:'',title:'',changes:[]};
     const state=reactive(readState());
     const route=ref(location.hash.slice(1)||'/mine');
     const taskTab=ref(sessionStorage.getItem('pda-task-tab')||'todo');
     const now=ref(Date.now()), query=ref(''), historyQuery=ref(''), historyDate=ref('');
     const sheet=ref(null), sheetProduct=ref(null), selectedStock=ref(null), selectedHistory=ref(null);
     const temporaryQuantity=ref(''), temporaryError=ref(''), scanCode=ref(''), toast=ref('');
-    const errors=reactive({}), busy=ref(false), savingTemp=ref(false), listRef=ref(null), inventoryFlow=ref(null);
+    const errors=reactive({}), busy=ref(false), savingTemp=ref(false), checkingVersion=ref(false), listRef=ref(null), inventoryFlow=ref(null);
     let toastTimer, searchTimer, ticker, busyTimer, scrollRequest=0;
     const page=computed(()=>route.value==='/mine'?'mine':route.value.startsWith('/task/')?'detail':route.value==='/tasks'?'tasks':route.value==='/history'?'history':'temp');
     const task=computed(()=>state.tasks.find(t=>t.id===route.value.split('/')[2])||null);
@@ -93,15 +94,30 @@ createApp({
     function openScan(){scanCode.value='';sheet.value='scan'}
     function submitScan(){if(!scanCode.value.trim())return;query.value=scanCode.value.trim();sheet.value=null;search()}
     function openHistory(history){selectedHistory.value=history;sheet.value='history-detail'}
-    const sheetTitle=computed(()=>({batches:sheetProduct.value?.slot?'选择货位商品批次':'选择商品批次',count:'输入盘后数量',scan:'扫描商品 / 货位','history-detail':'临时盘点详情'})[sheet.value]);
+    async function checkVersion(){
+      if(checkingVersion.value)return;
+      checkingVersion.value=true;
+      try{
+        const response=await fetch(`./version.json?check=${Date.now()}`,{cache:'no-store'});
+        if(!response.ok)throw new Error('version request failed');
+        const latest=await response.json();
+        if(latest.version!==release.version){
+          const url=new URL(location.href);url.searchParams.set('v',latest.version);
+          location.replace(url.href);return;
+        }
+        notify(`当前已是最新版本 v${release.version}`);
+      }catch{notify('暂时无法检查版本，请稍后重试')}
+      finally{checkingVersion.value=false}
+    }
+    const sheetTitle=computed(()=>({batches:sheetProduct.value?.slot?'选择货位商品批次':'选择商品批次',count:'输入盘后数量',scan:'扫描商品 / 货位','history-detail':'临时盘点详情',version:'版本管理'})[sheet.value]);
     onMounted(()=>{window.addEventListener('hashchange',onHash);ticker=setInterval(()=>now.value=Date.now(),1000);persist()});
     onUnmounted(()=>{window.removeEventListener('hashchange',onHash);clearInterval(ticker);clearTimeout(searchTimer);clearTimeout(toastTimer);clearTimeout(busyTimer)});
-    return{notify,state,page,title,task,taskTab,now,query,historyQuery,historyDate,visibleTasks,taskCounts,lines,goods,historyRows,sheet,sheetTitle,sheetProduct,selectedStock,selectedHistory,batchOptions,temporaryQuantity,temporaryError,savingTemp,scanCode,toast,inventoryFlow,doneCount,isDone,countdown,timeText,variance,taskTitle,navigate,goBack,openTask,submitTask,search,selectGoods,selectBatch,closeSheet,cancelCount,saveTemporary,openScan,submitScan,openHistory};
+    return{notify,release,state,page,title,task,taskTab,now,query,historyQuery,historyDate,visibleTasks,taskCounts,lines,goods,historyRows,sheet,sheetTitle,sheetProduct,selectedStock,selectedHistory,batchOptions,temporaryQuantity,temporaryError,savingTemp,checkingVersion,scanCode,toast,inventoryFlow,doneCount,isDone,countdown,timeText,variance,taskTitle,navigate,goBack,openTask,submitTask,search,selectGoods,selectBatch,closeSheet,cancelCount,saveTemporary,openScan,submitScan,openHistory,checkVersion};
   },
   template:`<div class="pda-app">
     <div class="pda-app" style="min-height:0" :inert="sheet?true:undefined">
     <pda-nav v-if="page!=='mine'" :title="title" :back="true" :action="page==='detail'&&task&&!isDone(task)?'提交任务':''" @back="goBack" @action="submitTask"/>
-    <template v-if="page==='mine'"><main class="page-scroll mine-page"><div class="mine-profile"><img src="./assets/m_mine_userpic.webp" alt=""><div><h1>小刘</h1><p>邻药汇演示门店 | 138****0000</p></div></div><section class="mine-stats"><div v-for="(label,i) in ['今日订单','今日条目','本月订单','本月条目']"><strong>{{[24,68,520,1386][i]}}</strong><small>{{label}}</small></div></section><section class="mine-functions"><h2>常用功能</h2><div class="mine-grid"><button v-for="(label,i) in ['盘点','破损','店内调拨','主商品库','版本管理','入库核准','签收','工单协作','采退待办','天气预报']" @click="i===0?navigate('/temp'):notify('本 Demo 演示盘点流程')"><img :src="'./assets/'+['m_inventory_count','m_damiage_count','m_store_inside_trans','m_main_inventory_goods','m_version_update_check','m_entry_approval','m_entry_sign','m_entry_collaboration','m_entry_mine_order_caitui','m_weather_entrance'][i]+'.webp'" alt=""><span>{{label}}</span></button></div></section></main><nav class="mine-tabs"><button @click="notify('本 Demo 演示盘点流程')"><img src="./assets/m_main_unselect.webp" alt="">首页</button><button class="active"><img src="./assets/m_mine_select.webp" alt="">我的</button></nav></template>
+    <template v-if="page==='mine'"><main class="page-scroll mine-page"><div class="mine-profile"><img src="./assets/m_mine_userpic.webp" alt=""><div><h1>小刘</h1><p>邻药汇演示门店 | 138****0000</p></div></div><section class="mine-stats"><div v-for="(label,i) in ['今日订单','今日条目','本月订单','本月条目']"><strong>{{[24,68,520,1386][i]}}</strong><small>{{label}}</small></div></section><section class="mine-functions"><h2>常用功能</h2><div class="mine-grid"><button v-for="(label,i) in ['盘点','破损','店内调拨','主商品库','版本管理','入库核准','签收','工单协作','采退待办','天气预报']" @click="i===0?navigate('/temp'):i===4?sheet='version':notify('本 Demo 演示盘点流程')"><img :src="'./assets/'+['m_inventory_count','m_damiage_count','m_store_inside_trans','m_main_inventory_goods','m_version_update_check','m_entry_approval','m_entry_sign','m_entry_collaboration','m_entry_mine_order_caitui','m_weather_entrance'][i]+'.webp'" alt=""><span>{{label}}</span></button></div></section></main><nav class="mine-tabs"><button @click="notify('本 Demo 演示盘点流程')"><img src="./assets/m_main_unselect.webp" alt="">首页</button><button class="active"><img src="./assets/m_mine_select.webp" alt="">我的</button></nav></template>
     <template v-if="page==='temp'">
       <main class="page-scroll temp-page"><search-field v-model="query" @search="search" @scan="openScan"/>
         <empty-state v-if="!query.trim()" text="输入品名、规格搜索"/>
@@ -128,8 +144,10 @@ createApp({
       <template v-else-if="sheet==='count' && selectedStock"><div class="sheet-product"><img class="product-image" src="./assets/m_pic_placeholder.webp" alt="商品暂无图片"><div><h2>{{selectedStock.name}}</h2><p>{{selectedStock.spec}}</p><p>{{selectedStock.brand}}</p></div></div><div class="row between"><strong class="slot">{{selectedStock.slot}}</strong><span class="muted" style="font-size:12px">批次 {{selectedStock.batch}}</span></div><p class="sheet-label">盘前数量 {{selectedStock.before}}{{selectedStock.unit}}<span v-if="selectedStock.occupied"> · 已占用 {{selectedStock.occupied}}{{selectedStock.unit}}</span></p><form @submit.prevent="saveTemporary"><input id="temporary-quantity" class="sheet-input" v-model="temporaryQuantity" @input="temporaryError=''" placeholder="请输入盘后数量" aria-label="临时盘后数量" inputmode="numeric" enterkeyhint="done" autocomplete="off" :aria-invalid="!!temporaryError"><p class="field-error" v-if="temporaryError" role="alert">{{temporaryError}}</p></form></template>
       <template v-else-if="sheet==='scan'"><p class="scan-note">演示扫码：输入货位或商品条码。<br>示例货位：A-01-02；条码：6900000000024</p><form @submit.prevent="submitScan"><input class="sheet-input" v-model="scanCode" placeholder="输入扫描结果" aria-label="扫描结果"></form></template>
       <template v-else-if="sheet==='history-detail' && selectedHistory"><div class="history-detail"><h2>{{selectedHistory.line.name}}</h2><p class="muted">{{selectedHistory.line.spec}}</p><p><strong class="slot">{{selectedHistory.line.slot}}</strong> · 批次 {{selectedHistory.line.batch}}</p><div class="result-big"><div class="row between"><span>盘前 <strong>{{selectedHistory.line.before}}</strong></span><span>盘后 <strong>{{selectedHistory.line.after}}</strong></span><b :class="selectedHistory.line.after>=selectedHistory.line.before?'gain':'loss'">{{variance(selectedHistory.line)}}</b></div><p>盘点变量：盘后{{selectedHistory.line.after}} − 盘前{{selectedHistory.line.before}} = {{selectedHistory.line.after-selectedHistory.line.before}}</p></div><p>盘点时间 {{timeText(selectedHistory.createdAt,true)}}</p><p class="muted">{{selectedHistory.sn}}</p></div></template>
+      <template v-else-if="sheet==='version'"><div class="version-detail"><p class="version-label">当前演示版本</p><strong>v{{release.version}}</strong><h3>{{release.title}}</h3><p class="version-date">发布于 {{release.releasedAt.slice(0,16).replace('T',' ')}}</p><ul><li v-for="change in release.changes" :key="change">{{change}}</li></ul><button class="version-demo-link" @click="navigate('/task/treview')">打开复盘演示任务 ›</button></div></template>
       <template #footer v-if="sheet==='count'"><button @click="cancelCount">取消</button><button @click="saveTemporary" :disabled="savingTemp">确定</button></template>
       <template #footer v-else-if="sheet==='scan'"><button @click="closeSheet">取消</button><button @click="submitScan" :disabled="!scanCode.trim()">确定</button></template>
+      <template #footer v-else-if="sheet==='version'"><button @click="closeSheet">关闭</button><button @click="checkVersion" :disabled="checkingVersion">{{checkingVersion?'检查中…':'检查更新'}}</button></template>
     </bottom-sheet>
     <div v-if="toast" class="toast" role="status">{{toast}}</div>
   </div>`

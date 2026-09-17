@@ -4,12 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>PDA 盘点</title>
-  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div class="preview-heading"><strong>PDA 盘点</strong><span>临时盘点 · 任务盘点</span></div>
+  <div class="preview-heading"><strong>PDA 盘点</strong><span>临时盘点 · 任务盘点 · <span id="demo-version">版本加载中</span></span></div>
   <div id="app" v-cloak></div>
   <p class="preview-note">交互 Demo · 示例数据 · 沿用智能药房 PDA 组件样式</p>
-  <script type="module" src="./app.js"></script>
+  <script type="module">
+    const response = await fetch(`./version.json?check=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('无法读取 Demo 版本登记');
+    const release = await response.json();
+    window.PDA_DEMO_RELEASE = release;
+    document.querySelector('#demo-version').textContent = `v${release.version}`;
+    const stylesheet = document.createElement('link');
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = `./style.css?v=${encodeURIComponent(release.version)}`;
+    document.head.append(stylesheet);
+    await new Promise(resolve => { stylesheet.onload = resolve; stylesheet.onerror = resolve; });
+    await import(`./app.js?v=${encodeURIComponent(release.version)}`);
+  </script>
 </body>
 </html>

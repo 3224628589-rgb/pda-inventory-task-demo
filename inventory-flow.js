@@ -1,5 +1,5 @@
-import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js';
-import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js';
+import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.09.17.1';
+import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.09.17.1';
 export const InventoryFlow={
  props:['task'],emits:['notice','finished'],
  setup(props,{emit,expose}){
