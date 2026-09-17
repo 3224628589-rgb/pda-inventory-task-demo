@@ -60,15 +60,20 @@ export function createReviewTask(now=Date.now()) {
   ...line,id:'review-'+index,after:null,countedAt:null,recordBefore:null,
   stockQuantity:line.before,initialAfter:null,initialCountedAt:null,reviewing:false,reviewedAt:null
  }));
- const firstResults=[12,12,12,1];
- firstResults.forEach((after,index)=>{
-  lines[index].after=after;lines[index].countedAt=now-(4-index)*120000;lines[index].stockQuantity=after;
- });
+ const counted=(index,after,minutesAgo)=>{const line=lines[index];line.after=after;line.countedAt=now-minutesAgo*60000;line.stockQuantity=after};
+ counted(0,12,12);
+ counted(1,10,9);
+ lines[1].initialAfter=8;lines[1].initialCountedAt=now-11*60000;lines[1].reviewedAt=lines[1].countedAt;
+ lines[2].before=10;lines[2].occupied=0;
+ counted(2,12,6);
+ lines[2].initialAfter=12;lines[2].initialCountedAt=now-8*60000;lines[2].reviewedAt=lines[2].countedAt;
+ lines[3].initialAfter=1;lines[3].initialCountedAt=now-5*60000;lines[3].reviewing=true;
  return {
-  id:'treview',fixtureVersion:1,title:'动销品盘点复盘演示',sn:'PD202609150005',
+  id:'treview',fixtureVersion:2,title:'动销品盘点复盘演示',sn:'PD202609150005',
   range:'A-0102-02-02 至 A-0102-02-07',method:'按货位',
-  note:'已完成4项，可展开A-0102-02-04，勾选批次后体验复盘流程。',
-  deadline:now+16220000,current:lines[4].id,direction:'asc',drafts:{},createdAt:now-3600000,completedAt:null,lines
+  note:'A-0102-02-04的正红花油正在复盘；完成后可展开该货位，对比初盘与复盘结果。',
+  deadline:now+16220000,current:lines[3].id,direction:'asc',drafts:{},createdAt:now-3600000,completedAt:null,
+  reviewSelectionIds:[lines[2].id,lines[3].id],lines
  };
 }
 

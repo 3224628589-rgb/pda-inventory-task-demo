@@ -1,17 +1,17 @@
-import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.09.17.1';
-import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.09.17.1';
+import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.09.17.2';
+import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.09.17.2';
 export const InventoryFlow={
  props:['task'],emits:['notice','finished'],
  setup(props,{emit,expose}){
-  const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),reviewIds=ref([]),busy=ref(false),error=ref(''),search=ref(''),searchQuery=ref(''),searchInput=ref(null),searchIndex=ref(-1);
-  const summary=ref(null),summaryOpen=ref(true);
+  const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),reviewIds=ref(props.task.lines.some(l=>l.reviewing)?props.task.reviewSelectionIds||[]:[]),busy=ref(false),error=ref(''),search=ref(''),searchQuery=ref(''),searchInput=ref(null),searchIndex=ref(-1);
+  const summary=ref(null),summaryOpen=ref(!props.task.lines.some(l=>l.reviewing));
   const stage=ref(null),scrubbing=ref(false),scrubKey=ref(''),guideTop=ref(0);
   const groups=computed(()=>{const all=orderedLines(props.task),out=[];for(const done of [true,false]){const map=new Map();for(const line of all.filter(l=>(l.countedAt!==null)===done)){const key=(done?'done:':'todo:')+line.slot;if(!map.has(key)){const g={key,slot:line.slot,done,lines:[]};map.set(key,g);out.push(g)}map.get(key).lines.push(line)}}return out});
   const keyFor=l=>(l.countedAt!==null?'done:':'todo:')+l.slot;
   const activeGroup=computed(()=>groups.value.find(g=>g.key===expanded.value));
   const searchMatches=computed(()=>{const q=searchQuery.value.toLowerCase();return q?orderedLines(props.task).filter(l=>[l.slot,l.name,l.spec,l.batch,l.barcode].some(value=>String(value||'').toLowerCase().includes(q))):[]});
   const searchPosition=computed(()=>searchIndex.value<0||!searchMatches.value.length?0:searchIndex.value+1);
-  const visibleLines=g=>expanded.value===g.key?g.lines:props.task.completedAt?[]:g.done?g.lines.filter(l=>l.after!==l.before||(l.initialAfter!==null&&l.initialAfter!==undefined&&l.initialAfter!==l.after)):[];
+  const visibleLines=g=>expanded.value===g.key?g.lines:props.task.completedAt?[]:g.done?g.lines.filter(l=>l.initialAfter!==null&&l.initialAfter!==undefined?l.initialAfter!==l.after:l.after!==l.before):[];
   const value=l=>props.task.drafts[l.id]??String(l.reviewing&&l.initialAfter!==null&&l.initialAfter!==undefined?l.initialAfter:l.before);
   const hasReview=l=>l.initialAfter!==null&&l.initialAfter!==undefined;
   const reviewSame=l=>hasReview(l)&&Number(l.initialAfter)===Number(l.after);

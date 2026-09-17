@@ -65,7 +65,7 @@
 .quantity-pair output,.quantity-pair input{width:64px}
 .review-active{min-height:298px}
 .review-active .active-bottom,.review-active .next-button{min-height:111px}
-.initial-result-chip{display:inline-flex!important;max-width:100%;padding:3px 11px;border-radius:12px;background:#ffd4ad;color:#fc641f!important;font-size:10px!important;font-weight:500!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.initial-result-chip{display:inline-flex!important;max-width:100%;padding:4px 8px;border-radius:12px;background:#ffd4ad;color:#fc641f!important;font-size:11px!important;font-weight:600!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .batch-summary{position:relative}
 .review-results{margin-top:3px;padding-right:66px}
 .review-results p{font-size:10px;line-height:16px;margin:0;color:#767b87}
