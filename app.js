@@ -34,7 +34,7 @@ createApp({
     const now=ref(Date.now()), query=ref(''), historyQuery=ref(''), historyDate=ref('');
     const sheet=ref(null), sheetProduct=ref(null), selectedStock=ref(null), selectedHistory=ref(null);
     const temporaryQuantity=ref(''), temporaryError=ref(''), scanCode=ref(''), toast=ref('');
-    const errors=reactive({}), busy=ref(false), savingTemp=ref(false), listRef=ref(null);
+    const errors=reactive({}), busy=ref(false), savingTemp=ref(false), listRef=ref(null), inventoryFlow=ref(null);
     let toastTimer, searchTimer, ticker, busyTimer, scrollRequest=0;
     const page=computed(()=>route.value==='/mine'?'mine':route.value.startsWith('/task/')?'detail':route.value==='/tasks'?'tasks':route.value==='/history'?'history':'temp');
     const task=computed(()=>state.tasks.find(t=>t.id===route.value.split('/')[2])||null);
@@ -65,6 +65,7 @@ createApp({
     function onHash(){route.value=location.hash.slice(1)||'/mine';sheet.value=null;toast.value='';clearTimeout(toastTimer)}
     function goBack(){if(sheet.value){closeSheet();return}navigate(page.value==='detail'?'/tasks':page.value==='temp'?'/mine':'/temp')}
     function openTask(id){navigate('/task/'+id)}
+    function submitTask(){inventoryFlow.value?.submitTask()}
     function search(){
       clearTimeout(searchTimer);
       const q=query.value.trim();if(!q)return;
@@ -92,11 +93,11 @@ createApp({
     const sheetTitle=computed(()=>({batches:sheetProduct.value?.slot?'选择货位商品批次':'选择商品批次',count:'输入盘后数量',scan:'扫描商品 / 货位','history-detail':'临时盘点详情'})[sheet.value]);
     onMounted(()=>{window.addEventListener('hashchange',onHash);ticker=setInterval(()=>now.value=Date.now(),1000);persist()});
     onUnmounted(()=>{window.removeEventListener('hashchange',onHash);clearInterval(ticker);clearTimeout(searchTimer);clearTimeout(toastTimer);clearTimeout(busyTimer)});
-    return{notify,state,page,title,task,taskTab,now,query,historyQuery,historyDate,visibleTasks,taskCounts,lines,goods,historyRows,sheet,sheetTitle,sheetProduct,selectedStock,selectedHistory,batchOptions,temporaryQuantity,temporaryError,savingTemp,scanCode,toast,doneCount,isDone,countdown,timeText,variance,taskTitle,navigate,goBack,openTask,search,selectGoods,selectBatch,closeSheet,cancelCount,saveTemporary,openScan,submitScan,openHistory};
+    return{notify,state,page,title,task,taskTab,now,query,historyQuery,historyDate,visibleTasks,taskCounts,lines,goods,historyRows,sheet,sheetTitle,sheetProduct,selectedStock,selectedHistory,batchOptions,temporaryQuantity,temporaryError,savingTemp,scanCode,toast,inventoryFlow,doneCount,isDone,countdown,timeText,variance,taskTitle,navigate,goBack,openTask,submitTask,search,selectGoods,selectBatch,closeSheet,cancelCount,saveTemporary,openScan,submitScan,openHistory};
   },
   template:`<div class="pda-app">
     <div class="pda-app" style="min-height:0" :inert="sheet?true:undefined">
-    <pda-nav v-if="page!=='mine'" :title="title" :back="true" @back="goBack"/>
+    <pda-nav v-if="page!=='mine'" :title="title" :back="true" :action="page==='detail'&&task&&!isDone(task)?'提交任务':''" @back="goBack" @action="submitTask"/>
     <template v-if="page==='mine'"><main class="page-scroll mine-page"><div class="mine-profile"><img src="./assets/m_mine_userpic.webp" alt=""><div><h1>小刘</h1><p>邻药汇演示门店 | 138****0000</p></div></div><section class="mine-stats"><div v-for="(label,i) in ['今日订单','今日条目','本月订单','本月条目']"><strong>{{[24,68,520,1386][i]}}</strong><small>{{label}}</small></div></section><section class="mine-functions"><h2>常用功能</h2><div class="mine-grid"><button v-for="(label,i) in ['盘点','破损','店内调拨','主商品库','版本管理','入库核准','签收','工单协作','采退待办','天气预报']" @click="i===0?navigate('/temp'):notify('本 Demo 演示盘点流程')"><img :src="'./assets/'+['m_inventory_count','m_damiage_count','m_store_inside_trans','m_main_inventory_goods','m_version_update_check','m_entry_approval','m_entry_sign','m_entry_collaboration','m_entry_mine_order_caitui','m_weather_entrance'][i]+'.webp'" alt=""><span>{{label}}</span></button></div></section></main><nav class="mine-tabs"><button @click="notify('本 Demo 演示盘点流程')"><img src="./assets/m_main_unselect.webp" alt="">首页</button><button class="active"><img src="./assets/m_mine_select.webp" alt="">我的</button></nav></template>
     <template v-if="page==='temp'">
       <main class="page-scroll temp-page"><search-field v-model="query" @search="search" @scan="openScan"/>
@@ -110,8 +111,8 @@ createApp({
       <main class="page-scroll tasks-body" role="tabpanel"><task-card v-for="item in visibleTasks" :key="item.id" :task="item" :now="now" @open="openTask"/><empty-state v-if="!visibleTasks.length" :text="taskTab==='done'?'暂无已完成任务':'暂无未完成任务'"><button class="return-link" @click="navigate('/temp')">返回临时盘点</button></empty-state></main>
     </template>
     <template v-else-if="page==='detail' && task">
-      <inventory-flow :key="task.id" :task="task" @notice="notify" @finished="taskTab='done'">
-        <template #summary><section class="task-toolbar"><h2>{{taskTitle(task)}}</h2><div class="task-meta row between"><span>已盘 {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">已完成</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div></section></template>
+      <inventory-flow ref="inventoryFlow" :key="task.id" :task="task" @notice="notify" @finished="taskTab='done'">
+        <template #summary><section class="task-toolbar"><h2>{{taskTitle(task)}}</h2><div class="task-meta row between"><span>已盘 {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">完成时间{{timeText(task.completedAt,true)}}</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div></section></template>
       </inventory-flow>
     </template>
     <template v-else-if="page==='history'">
