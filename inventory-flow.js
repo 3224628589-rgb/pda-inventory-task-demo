@@ -2,7 +2,7 @@ import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js
 import {orderedLines,quantityError,timeText,variance} from './data.js';
 export const InventoryFlow={
  props:['task'],emits:['notice','finished'],
- setup(props,{emit}){
+ setup(props,{emit,expose}){
   const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),busy=ref(false),error=ref(''),search=ref(''),searchQuery=ref(''),searchInput=ref(null),searchIndex=ref(-1);
   const summary=ref(null),summaryOpen=ref(true);
   const stage=ref(null),scrubbing=ref(false),scrubKey=ref(''),guideTop=ref(0);
@@ -11,7 +11,7 @@ export const InventoryFlow={
   const activeGroup=computed(()=>groups.value.find(g=>g.key===expanded.value));
   const searchMatches=computed(()=>{const q=searchQuery.value.toLowerCase();return q?orderedLines(props.task).filter(l=>[l.slot,l.name,l.spec,l.batch,l.barcode].some(value=>String(value||'').toLowerCase().includes(q))):[]});
   const searchPosition=computed(()=>searchIndex.value<0||!searchMatches.value.length?0:searchIndex.value+1);
-  const visibleLines=g=>expanded.value===g.key?g.lines:g.done?g.lines.filter(l=>l.after!==l.before):[];
+  const visibleLines=g=>expanded.value===g.key?g.lines:props.task.completedAt?[]:g.done?g.lines.filter(l=>l.after!==l.before):[];
   const value=l=>props.task.drafts[l.id]??String(l.before);
   const focusedValues=new Map();
   let motion=0,manual=false,programmatic=false,scrollTimer,frame,scanFrame,finishFrame,alive=true,animations=[],touching=false,candidate=null,spaceObserver;
@@ -75,8 +75,20 @@ export const InventoryFlow={
     l.recordBefore=l.before;l.after=after;l.stockQuantity=after;l.countedAt=Date.now();delete props.task.drafts[l.id];
     const all=orderedLines(props.task),i=all.findIndex(x=>x.id===l.id),next=all.slice(i+1).find(x=>x.countedAt===null)||all.find(x=>x.countedAt===null);
     if(next){expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id}
-    else{props.task.completedAt=Date.now();props.task.current=null;current.value='';expanded.value=keyFor(l);emit('finished');emit('notice','全部盘点完毕，任务已完成')}
+    else{props.task.current=null;current.value='';expanded.value=keyFor(l);emit('notice','全部明细已盘点，请提交任务')}
    });
+  }
+  async function submitTask(){
+   if(busy.value||props.task.completedAt)return;
+   const pending=orderedLines(props.task).filter(l=>l.countedAt===null);
+   if(pending.length){
+    const next=pending[0];collapseSummary();
+    await change(()=>{expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id});
+    emit('notice',`还有${pending.length}项未盘点，请先完成当前明细`);return;
+   }
+   const first=orderedLines(props.task)[0];
+   await change(()=>{props.task.completedAt=Date.now();props.task.current=null;current.value='';if(first)expanded.value=keyFor(first)});
+   emit('finished');emit('notice','任务提交成功');
   }
   function toggle(l){selected.value=selected.value.includes(l.id)?selected.value.filter(x=>x!==l.id):[...selected.value,l.id]}
   function selectAll(g){selected.value=g.lines.every(l=>selected.value.includes(l.id))?[]:g.lines.map(l=>l.id)}
@@ -131,20 +143,21 @@ export const InventoryFlow={
   watch(search,()=>{searchIndex.value=-1;searchQuery.value=''});
   onMounted(()=>{updateSpacing();spaceObserver=new ResizeObserver(updateSpacing);spaceObserver.observe(stage.value);const l=orderedLines(props.task).find(l=>l.countedAt===null)||orderedLines(props.task)[0];if(l){expanded.value=keyFor(l);current.value=l.countedAt===null?l.id:'';props.task.current=current.value||null;center(motion,true)}});
   onUnmounted(()=>{alive=false;spaceObserver?.disconnect();stop();clearTimeout(scrollTimer);cancelAnimationFrame(scanFrame)});
+  expose({submitTask});
   return{list,summary,summaryOpen,collapseSummary,expandSummary,stage,scrubbing,scrubKey,guideTop,groups,expanded,current,selected,busy,error,search,searchQuery,searchInput,searchMatches,searchPosition,visibleLines,value,activate,draft,focus,blur,complete,toggle,selectAll,recount,searchHit,searchMove,clearSearch,isSearchMatch,groupSearchMatches,gesture,touchStart,touchEnd,settle,sort,timeText,variance};
  },
  template:`<div ref="summary" class="task-summary-collapse" :class="{'is-collapsed':!summaryOpen}" :aria-hidden="!summaryOpen" :inert="!summaryOpen?true:undefined"><slot name="summary"/></div><button v-if="!summaryOpen" class="summary-divider" @click="expandSummary" aria-label="展开任务信息"><span>任务信息</span><i>⌄</i></button><div class="flow-tools"><form @submit.prevent="searchHit"><input ref="searchInput" v-model="search" placeholder="货位 / 商品 / 批次 / 条码" aria-label="搜索任务明细" inputmode="search" enterkeyhint="search" autocomplete="off"><button v-if="search" type="button" class="find-clear" @click="clearSearch" aria-label="清空任务搜索"><img src="./assets/m_icon_clear.webp" alt=""></button><span v-if="searchQuery" class="find-count" aria-live="polite">{{searchPosition}}/{{searchMatches.length}}</span><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(-1)" aria-label="上一个搜索结果">↑</button><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(1)" aria-label="下一个搜索结果">↓</button><button type="submit" class="find-submit">搜索</button></form><button @click="sort" aria-label="切换货位排序">{{task.direction==='asc'?'A→Z':'Z→A'}} ⇅</button></div>
- <div class="inventory-scroll-stage" ref="stage" :class="{'is-scrubbing':scrubbing}"><div v-if="scrubbing" class="scrub-guide" :style="{top:guideTop+'px'}" aria-hidden="true"></div><main class="page-scroll slot-list" ref="list" @click.capture="collapseSummary" @focusin.capture="collapseSummary" @input.capture="collapseSummary" @keydown.capture="collapseSummary" @wheel.capture.passive="collapseSummary" @touchstart.capture.passive="collapseSummary" @wheel.passive="gesture" @touchstart.passive="touchStart" @touchend.passive="touchEnd" @touchcancel.passive="touchEnd" @scroll.passive="settle" aria-label="盘点明细" :aria-busy="busy">
+ <div class="inventory-scroll-stage" ref="stage" :class="{'is-scrubbing':scrubbing,'task-complete-mode':task.completedAt}"><div v-if="scrubbing" class="scrub-guide" :style="{top:guideTop+'px'}" aria-hidden="true"></div><main class="page-scroll slot-list" ref="list" @click.capture="collapseSummary" @focusin.capture="collapseSummary" @input.capture="collapseSummary" @keydown.capture="collapseSummary" @wheel.capture.passive="collapseSummary" @touchstart.capture.passive="collapseSummary" @wheel.passive="gesture" @touchstart.passive="touchStart" @touchend.passive="touchEnd" @touchcancel.passive="touchEnd" @scroll.passive="settle" aria-label="盘点明细" :aria-busy="busy">
  <article v-for="g in groups" :key="g.key" :data-group="g.key" class="slot-group" :class="{'group-done':g.done,'group-open':expanded===g.key,'is-scrub-target':scrubbing&&scrubKey===g.key,'is-search-match':groupSearchMatches(g)>0}">
-  <header class="slot-head"><button v-if="g.done&&expanded===g.key" class="check-circle" :class="{checked:g.lines.every(l=>selected.includes(l.id))}" @click="selectAll(g)" aria-label="全选该货位批次">{{g.lines.every(l=>selected.includes(l.id))?'✓':''}}</button><button class="slot-toggle" @click="activate(g)" :aria-expanded="expanded===g.key"><strong>{{g.slot}}</strong><span class="slot-status">{{g.done?'已盘点':'待盘点'}}<small v-if="groupSearchMatches(g)"> · {{groupSearchMatches(g)}}处</small></span></button></header>
+  <header class="slot-head"><button v-if="g.done&&expanded===g.key&&!task.completedAt" class="check-circle" :class="{checked:g.lines.every(l=>selected.includes(l.id))}" @click="selectAll(g)" aria-label="全选该货位批次">{{g.lines.every(l=>selected.includes(l.id))?'✓':''}}</button><button class="slot-toggle" @click="activate(g)" :aria-expanded="expanded===g.key"><strong>{{g.slot}}</strong><span class="slot-status">{{g.done?'已盘点':'待盘点'}}<small v-if="groupSearchMatches(g)"> · {{groupSearchMatches(g)}}处</small></span></button></header>
   <div v-for="l in visibleLines(g)" :key="l.id" class="batch-wrap">
-   <button v-if="g.done&&expanded===g.key" class="check-circle" :class="{checked:selected.includes(l.id)}" @click="toggle(l)" :aria-label="'选择重新盘点 '+l.name+' '+l.batch">{{selected.includes(l.id)?'✓':''}}</button>
+   <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="check-circle" :class="{checked:selected.includes(l.id)}" @click="toggle(l)" :aria-label="'选择重新盘点 '+l.name+' '+l.batch">{{selected.includes(l.id)?'✓':''}}</button>
    <section :data-line="l.id" class="batch-card" :class="{'batch-active':!g.done&&current===l.id&&expanded===g.key,'batch-done':g.done,'is-search-match':isSearchMatch(l)}">
     <template v-if="!g.done&&current===l.id&&expanded===g.key"><img class="active-photo" :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div class="active-bottom"><div class="active-info"><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><div class="quantity-pair"><label>盘前数量<output>{{l.before}}</output></label><label>盘后数量<input :id="'quantity-'+l.id" :value="value(l)" @input="draft(l,$event)" @focus="focus(l,$event)" @blur="blur(l)" @keydown.enter.prevent="complete(l)" inputmode="numeric" autocomplete="off" aria-label="盘后数量" :aria-invalid="!!error"></label></div></div><button class="next-button" :disabled="busy" @click="complete(l)">盘点完毕<br>下一条</button></div><p v-if="error" class="field-error" role="alert">{{error}}</p></template>
     <button v-else class="batch-summary" @click="g.done?activate(g):activate(g,l)"><img :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><template v-if="g.done"><p class="result-formula">{{variance(l)}}<span v-if="l.after!==l.before">=盘后{{l.after}}-盘前{{l.before}}</span><span v-else> · 盘后{{l.after}}=盘前{{l.before}}</span></p><time>{{timeText(l.countedAt)}}</time></template><p v-else>当前数量：{{l.before}}</p></div></button>
    </section>
   </div>
-  <button v-if="g.done&&expanded===g.key" class="recount-button" :disabled="!selected.length||busy" @click="recount(g)">重新盘点{{selected.length?'（'+selected.length+'）':''}}</button>
+  <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="recount-button" :disabled="!selected.length||busy" @click="recount(g)">重新盘点{{selected.length?'（'+selected.length+'）':''}}</button>
  </article><p class="list-end">{{task.completedAt?'全部盘点完成，可展开货位复核':'已显示全部货位'}}</p>
  </main></div>`
 };
