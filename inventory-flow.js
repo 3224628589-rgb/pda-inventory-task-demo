@@ -1,9 +1,9 @@
 import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js';
-import {orderedLines,quantityError,timeText,variance} from './data.js';
+import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js';
 export const InventoryFlow={
  props:['task'],emits:['notice','finished'],
  setup(props,{emit,expose}){
-  const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),busy=ref(false),error=ref(''),search=ref(''),searchQuery=ref(''),searchInput=ref(null),searchIndex=ref(-1);
+  const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),reviewIds=ref([]),busy=ref(false),error=ref(''),search=ref(''),searchQuery=ref(''),searchInput=ref(null),searchIndex=ref(-1);
   const summary=ref(null),summaryOpen=ref(true);
   const stage=ref(null),scrubbing=ref(false),scrubKey=ref(''),guideTop=ref(0);
   const groups=computed(()=>{const all=orderedLines(props.task),out=[];for(const done of [true,false]){const map=new Map();for(const line of all.filter(l=>(l.countedAt!==null)===done)){const key=(done?'done:':'todo:')+line.slot;if(!map.has(key)){const g={key,slot:line.slot,done,lines:[]};map.set(key,g);out.push(g)}map.get(key).lines.push(line)}}return out});
@@ -11,8 +11,11 @@ export const InventoryFlow={
   const activeGroup=computed(()=>groups.value.find(g=>g.key===expanded.value));
   const searchMatches=computed(()=>{const q=searchQuery.value.toLowerCase();return q?orderedLines(props.task).filter(l=>[l.slot,l.name,l.spec,l.batch,l.barcode].some(value=>String(value||'').toLowerCase().includes(q))):[]});
   const searchPosition=computed(()=>searchIndex.value<0||!searchMatches.value.length?0:searchIndex.value+1);
-  const visibleLines=g=>expanded.value===g.key?g.lines:props.task.completedAt?[]:g.done?g.lines.filter(l=>l.after!==l.before):[];
-  const value=l=>props.task.drafts[l.id]??String(l.before);
+  const visibleLines=g=>expanded.value===g.key?g.lines:props.task.completedAt?[]:g.done?g.lines.filter(l=>l.after!==l.before||(l.initialAfter!==null&&l.initialAfter!==undefined&&l.initialAfter!==l.after)):[];
+  const value=l=>props.task.drafts[l.id]??String(l.reviewing&&l.initialAfter!==null&&l.initialAfter!==undefined?l.initialAfter:l.before);
+  const hasReview=l=>l.initialAfter!==null&&l.initialAfter!==undefined;
+  const reviewSame=l=>hasReview(l)&&Number(l.initialAfter)===Number(l.after);
+  const reviewSummary=l=>`初盘复盘${reviewSame(l)?'一致':'不一致'}=初盘${varianceAt(l,l.initialAfter)}=复盘${varianceAt(l,l.after)}`;
   const focusedValues=new Map();
   let motion=0,manual=false,programmatic=false,scrollTimer,frame,scanFrame,finishFrame,alive=true,animations=[],touching=false,candidate=null,spaceObserver;
   const reduce=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -63,20 +66,24 @@ export const InventoryFlow={
    summary.value.style.height='';summaryOpen.value=true;await nextTick();updateSpacing();
    if(anchor&&oldTop!==undefined)list.value.scrollTop+=anchor.getBoundingClientRect().top-oldTop;
   }
-  function activate(group,line){change(()=>{expanded.value=group.key;current.value=group.done?'':(line||group.lines[0]).id;props.task.current=current.value||null})}
+  function activate(group,line){const keep=group.done?reviewIds.value.filter(id=>group.lines.some(item=>item.id===id&&item.countedAt!==null)):[];change(()=>{expanded.value=group.key;current.value=group.done?'':(line||group.lines[0]).id;props.task.current=current.value||null}).then(()=>{if(keep.length)selected.value=keep})}
   function draft(l,event){props.task.drafts[l.id]=event.target.value;error.value=''}
   function focus(l,event){focusedValues.set(l.id,value(l));event.target.select()}
   function blur(l){if(props.task.drafts[l.id]==='')props.task.drafts[l.id]=focusedValues.get(l.id)??String(l.before)}
   async function complete(l){
    if(busy.value||l.id!==current.value||l.countedAt!==null)return;
    error.value=quantityError(value(l),l.occupied);if(error.value)return;
-   const after=Number(value(l));document.activeElement?.blur();
+   const after=Number(value(l)),wasReview=!!l.reviewing;document.activeElement?.blur();
    await change(()=>{
-    l.recordBefore=l.before;l.after=after;l.stockQuantity=after;l.countedAt=Date.now();delete props.task.drafts[l.id];
+    const timestamp=Date.now();
+    if(l.reviewing){l.after=after;l.stockQuantity=after;l.countedAt=timestamp;l.reviewedAt=timestamp;l.reviewing=false}
+    else{l.recordBefore=l.before;l.after=after;l.stockQuantity=after;l.countedAt=timestamp}
+    delete props.task.drafts[l.id];
     const all=orderedLines(props.task),i=all.findIndex(x=>x.id===l.id),next=all.slice(i+1).find(x=>x.countedAt===null)||all.find(x=>x.countedAt===null);
     if(next){expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id}
     else{props.task.current=null;current.value='';expanded.value=keyFor(l);emit('notice','全部明细已盘点，请提交任务')}
    });
+   if(wasReview)selected.value=reviewIds.value.filter(id=>props.task.lines.some(item=>item.id===id&&item.countedAt!==null));
   }
   async function submitTask(){
    if(busy.value||props.task.completedAt)return;
@@ -90,9 +97,9 @@ export const InventoryFlow={
    await change(()=>{props.task.completedAt=Date.now();props.task.current=null;current.value='';if(first)expanded.value=keyFor(first)});
    emit('finished');emit('notice','任务提交成功');
   }
-  function toggle(l){selected.value=selected.value.includes(l.id)?selected.value.filter(x=>x!==l.id):[...selected.value,l.id]}
-  function selectAll(g){selected.value=g.lines.every(l=>selected.value.includes(l.id))?[]:g.lines.map(l=>l.id)}
-  function recount(g){if(!selected.value.length||busy.value)return;const ids=[...selected.value];change(()=>{for(const l of g.lines.filter(l=>ids.includes(l.id))){l.before=l.stockQuantity??l.after;l.recordBefore=null;l.after=null;l.countedAt=null;delete props.task.drafts[l.id]}props.task.completedAt=null;const next=orderedLines(props.task).find(l=>ids.includes(l.id));expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id});emit('notice','已转为待盘点，重新核对实物数量')}
+  function toggle(l){selected.value=selected.value.includes(l.id)?selected.value.filter(x=>x!==l.id):[...selected.value,l.id];reviewIds.value=[...selected.value]}
+  function selectAll(g){selected.value=g.lines.every(l=>selected.value.includes(l.id))?[]:g.lines.map(l=>l.id);reviewIds.value=[...selected.value]}
+  function recount(g){if(!selected.value.length||busy.value)return;const ids=[...selected.value];reviewIds.value=ids;change(()=>{for(const l of g.lines.filter(l=>ids.includes(l.id))){if(l.initialAfter===null||l.initialAfter===undefined){l.initialAfter=l.after;l.initialCountedAt=l.countedAt}l.reviewing=true;l.after=null;l.countedAt=null;l.reviewedAt=null;delete props.task.drafts[l.id]}props.task.completedAt=null;const next=orderedLines(props.task).find(l=>ids.includes(l.id));expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id});emit('notice','已进入复盘，请重新核对实物数量')}
   function jumpToSearch(index){
    const matches=searchMatches.value;if(!matches.length){searchIndex.value=-1;emit('notice','未找到匹配的货位、商品或批次');return}
    searchInput.value?.blur();searchIndex.value=(index+matches.length)%matches.length;const l=matches[searchIndex.value];collapseSummary();activate(groups.value.find(g=>g.key===keyFor(l)),l);
@@ -144,7 +151,7 @@ export const InventoryFlow={
   onMounted(()=>{updateSpacing();spaceObserver=new ResizeObserver(updateSpacing);spaceObserver.observe(stage.value);const l=orderedLines(props.task).find(l=>l.countedAt===null)||orderedLines(props.task)[0];if(l){expanded.value=keyFor(l);current.value=l.countedAt===null?l.id:'';props.task.current=current.value||null;center(motion,true)}});
   onUnmounted(()=>{alive=false;spaceObserver?.disconnect();stop();clearTimeout(scrollTimer);cancelAnimationFrame(scanFrame)});
   expose({submitTask});
-  return{list,summary,summaryOpen,collapseSummary,expandSummary,stage,scrubbing,scrubKey,guideTop,groups,expanded,current,selected,busy,error,search,searchQuery,searchInput,searchMatches,searchPosition,visibleLines,value,activate,draft,focus,blur,complete,toggle,selectAll,recount,searchHit,searchMove,clearSearch,isSearchMatch,groupSearchMatches,gesture,touchStart,touchEnd,settle,sort,timeText,variance};
+  return{list,summary,summaryOpen,collapseSummary,expandSummary,stage,scrubbing,scrubKey,guideTop,groups,expanded,current,selected,reviewIds,busy,error,search,searchQuery,searchInput,searchMatches,searchPosition,visibleLines,value,activate,draft,focus,blur,complete,toggle,selectAll,recount,searchHit,searchMove,clearSearch,isSearchMatch,groupSearchMatches,gesture,touchStart,touchEnd,settle,sort,timeText,variance,varianceAt,resultText,hasReview,reviewSame,reviewSummary};
  },
  template:`<div ref="summary" class="task-summary-collapse" :class="{'is-collapsed':!summaryOpen}" :aria-hidden="!summaryOpen" :inert="!summaryOpen?true:undefined"><slot name="summary"/></div><button v-if="!summaryOpen" class="summary-divider" @click="expandSummary" aria-label="展开任务信息"><span>任务信息</span><i>⌄</i></button><div class="flow-tools"><form @submit.prevent="searchHit"><input ref="searchInput" v-model="search" placeholder="货位 / 商品 / 批次 / 条码" aria-label="搜索任务明细" inputmode="search" enterkeyhint="search" autocomplete="off"><button v-if="search" type="button" class="find-clear" @click="clearSearch" aria-label="清空任务搜索"><img src="./assets/m_icon_clear.webp" alt=""></button><span v-if="searchQuery" class="find-count" aria-live="polite">{{searchPosition}}/{{searchMatches.length}}</span><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(-1)" aria-label="上一个搜索结果">↑</button><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(1)" aria-label="下一个搜索结果">↓</button><button type="submit" class="find-submit">搜索</button></form><button @click="sort" aria-label="切换货位排序">{{task.direction==='asc'?'A→Z':'Z→A'}} ⇅</button></div>
  <div class="inventory-scroll-stage" ref="stage" :class="{'is-scrubbing':scrubbing,'task-complete-mode':task.completedAt}"><div v-if="scrubbing" class="scrub-guide" :style="{top:guideTop+'px'}" aria-hidden="true"></div><main class="page-scroll slot-list" ref="list" @click.capture="collapseSummary" @focusin.capture="collapseSummary" @input.capture="collapseSummary" @keydown.capture="collapseSummary" @wheel.capture.passive="collapseSummary" @touchstart.capture.passive="collapseSummary" @wheel.passive="gesture" @touchstart.passive="touchStart" @touchend.passive="touchEnd" @touchcancel.passive="touchEnd" @scroll.passive="settle" aria-label="盘点明细" :aria-busy="busy">
@@ -152,12 +159,12 @@ export const InventoryFlow={
   <header class="slot-head"><button v-if="g.done&&expanded===g.key&&!task.completedAt" class="check-circle" :class="{checked:g.lines.every(l=>selected.includes(l.id))}" @click="selectAll(g)" aria-label="全选该货位批次">{{g.lines.every(l=>selected.includes(l.id))?'✓':''}}</button><button class="slot-toggle" @click="activate(g)" :aria-expanded="expanded===g.key"><strong>{{g.slot}}</strong><span class="slot-status">{{g.done?'已盘点':'待盘点'}}<small v-if="groupSearchMatches(g)"> · {{groupSearchMatches(g)}}处</small></span></button></header>
   <div v-for="l in visibleLines(g)" :key="l.id" class="batch-wrap">
    <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="check-circle" :class="{checked:selected.includes(l.id)}" @click="toggle(l)" :aria-label="'选择重新盘点 '+l.name+' '+l.batch">{{selected.includes(l.id)?'✓':''}}</button>
-   <section :data-line="l.id" class="batch-card" :class="{'batch-active':!g.done&&current===l.id&&expanded===g.key,'batch-done':g.done,'is-search-match':isSearchMatch(l)}">
-    <template v-if="!g.done&&current===l.id&&expanded===g.key"><img class="active-photo" :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div class="active-bottom"><div class="active-info"><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><div class="quantity-pair"><label>盘前数量<output>{{l.before}}</output></label><label>盘后数量<input :id="'quantity-'+l.id" :value="value(l)" @input="draft(l,$event)" @focus="focus(l,$event)" @blur="blur(l)" @keydown.enter.prevent="complete(l)" inputmode="numeric" autocomplete="off" aria-label="盘后数量" :aria-invalid="!!error"></label></div></div><button class="next-button" :disabled="busy" @click="complete(l)">盘点完毕<br>下一条</button></div><p v-if="error" class="field-error" role="alert">{{error}}</p></template>
-    <button v-else class="batch-summary" @click="g.done?activate(g):activate(g,l)"><img :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><template v-if="g.done"><p class="result-formula">{{variance(l)}}<span v-if="l.after!==l.before">=盘后{{l.after}}-盘前{{l.before}}</span><span v-else> · 盘后{{l.after}}=盘前{{l.before}}</span></p><time>{{timeText(l.countedAt)}}</time></template><p v-else>当前数量：{{l.before}}</p></div></button>
+   <section :data-line="l.id" class="batch-card" :class="{'batch-active':!g.done&&current===l.id&&expanded===g.key,'review-active':l.reviewing,'batch-done':g.done,'is-search-match':isSearchMatch(l)}">
+    <template v-if="!g.done&&current===l.id&&expanded===g.key"><img class="active-photo" :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div class="active-bottom"><div class="active-info"><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><p v-if="l.reviewing" class="initial-result-chip">{{resultText(l,l.initialAfter,'初盘')}}</p><div class="quantity-pair"><label>盘前<output>{{l.before}}</output></label><label>盘后<input :id="'quantity-'+l.id" :value="value(l)" @input="draft(l,$event)" @focus="focus(l,$event)" @blur="blur(l)" @keydown.enter.prevent="complete(l)" inputmode="numeric" autocomplete="off" aria-label="盘后数量" :aria-invalid="!!error"></label></div></div><button class="next-button" :disabled="busy" @click="complete(l)">{{l.reviewing?'复盘完毕':'盘点完毕'}}<br>下一条</button></div><p v-if="error" class="field-error" role="alert">{{error}}</p></template>
+    <button v-else class="batch-summary" @click="g.done?activate(g):activate(g,l)"><img :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><template v-if="g.done"><template v-if="hasReview(l)&&expanded===g.key"><div class="review-results"><p><b>初盘{{varianceAt(l,l.initialAfter)}}</b><span>{{resultText(l,l.initialAfter).slice(varianceAt(l,l.initialAfter).length)}}</span></p><p><b>复盘{{varianceAt(l,l.after)}}</b><span>{{resultText(l,l.after).slice(varianceAt(l,l.after).length)}}</span></p></div><span class="review-badge" :class="{different:!reviewSame(l)}">初复盘{{reviewSame(l)?'一致':'差异'}}</span></template><p v-else-if="hasReview(l)" class="result-formula review-summary">{{reviewSummary(l)}}</p><p v-else class="result-formula"><b>{{varianceAt(l,l.after)}}</b><span>{{resultText(l,l.after).slice(varianceAt(l,l.after).length)}}</span></p></template><p v-else>当前数量：{{l.before}}</p></div></button>
    </section>
   </div>
-  <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="recount-button" :disabled="!selected.length||busy" @click="recount(g)">重新盘点{{selected.length?'（'+selected.length+'）':''}}</button>
+  <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="recount-button" :disabled="!selected.length||busy" @click="recount(g)">重新盘点</button>
  </article><p class="list-end">{{task.completedAt?'全部盘点完成，可展开货位复核':'已显示全部货位'}}</p>
  </main></div>`
 };
