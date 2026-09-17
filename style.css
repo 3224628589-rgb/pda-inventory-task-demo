@@ -76,3 +76,4 @@
 .review-summary{color:#767b87;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .result-formula{color:#fc641f;font-weight:600}
 .result-formula span{font-weight:400}
+.phase-badge{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:4px;background:#fff0e6;color:#f36a23;font-size:10px;line-height:15px;font-weight:600;vertical-align:2px;white-space:nowrap}

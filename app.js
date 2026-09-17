@@ -1,8 +1,8 @@
-import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.09.17.2';
-import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.09.17.2';
-import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.09.17.2';
+import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.09.17.3';
+import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.09.17.3';
+import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.09.17.3';
 
-import { InventoryFlow } from './inventory-flow.js?v=2026.09.17.2';
+import { InventoryFlow } from './inventory-flow.js?v=2026.09.17.3';
 const SESSION_KEY = 'pda-inventory-v3';
 function readState() {
   let state;
@@ -131,7 +131,7 @@ createApp({
     </template>
     <template v-else-if="page==='detail' && task">
       <inventory-flow ref="inventoryFlow" :key="task.id" :task="task" @notice="notify" @finished="taskTab='done'">
-        <template #summary><section class="task-toolbar"><h2>{{taskTitle(task)}}</h2><div class="task-meta row between"><span>已盘 {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">完成时间{{timeText(task.completedAt,true)}}</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div></section></template>
+        <template #summary><section class="task-toolbar"><h2>{{taskTitle(task)}}<span v-if="task.phase==='review'" class="phase-badge">复盘</span></h2><div class="task-meta row between"><span>{{task.phase==='review'?'已复盘':'已盘'}} {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">完成时间{{timeText(task.completedAt,true)}}</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div></section></template>
       </inventory-flow>
     </template>
     <template v-else-if="page==='history'">

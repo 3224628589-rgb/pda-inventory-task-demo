@@ -1,5 +1,5 @@
-import { computed, nextTick, onMounted, onUnmounted, ref } from './vendor/vue.js?v=2026.09.17.2';
-import { countdown, doneCount, isDone, timeText, variance, taskTitle, dateText } from './data.js?v=2026.09.17.2';
+import { computed, nextTick, onMounted, onUnmounted, ref } from './vendor/vue.js?v=2026.09.17.3';
+import { countdown, doneCount, isDone, timeText, variance, taskTitle, dateText } from './data.js?v=2026.09.17.3';
 
 export const PdaNav = {
   props: ['title', 'back', 'action'], emits:['back','action'],
@@ -14,7 +14,7 @@ export const SearchField = {
 export const TaskCard = {
   props:['task','now'], emits:['open'],
   setup(){return{countdown,doneCount,isDone,timeText,taskTitle,dateText}},
-  template:`<button class="task-card" :data-task="task.id" @click="$emit('open',task.id)"><h2>{{taskTitle(task)}}</h2><div class="task-meta row between"><span>已盘 {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">完成于{{timeText(task.completedAt,true).slice(0,-3)}}</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div><div class="task-bottom"><span>创建于{{dateText(task.createdAt)}}——截止{{dateText(task.deadline)}}</span><span class="task-link">{{isDone(task)?'查看详情':doneCount(task)===task.lines.length?'提交任务':doneCount(task)?'继续盘点':'开始盘点'}}<span class="chevron">›</span></span></div></button>`
+  template:`<button class="task-card" :data-task="task.id" @click="$emit('open',task.id)"><h2>{{taskTitle(task)}}<span v-if="task.phase==='review'" class="phase-badge">复盘</span></h2><div class="task-meta row between"><span>{{task.phase==='review'?'已复盘':'已盘'}} {{doneCount(task)}} / {{task.lines.length}} 项</span><span v-if="!isDone(task)" class="countdown" :class="{overdue:task.deadline<now}">{{countdown(task.deadline,now)}}</span><span v-else class="task-completed">完成于{{timeText(task.completedAt,true).slice(0,-3)}}</span></div><div class="progress-track"><i :style="{width:doneCount(task)/task.lines.length*100+'%'}"></i></div><div class="task-bottom"><span>创建于{{dateText(task.createdAt)}}——截止{{dateText(task.deadline)}}</span><span class="task-link">{{isDone(task)?'查看详情':doneCount(task)===task.lines.length?'提交任务':doneCount(task)?(task.phase==='review'?'继续复盘':'继续盘点'):(task.phase==='review'?'开始复盘':'开始盘点')}}<span class="chevron">›</span></span></div></button>`
 };
 export const InventoryCard = {
   props:['line','active','index','draft','error','readonly','busy'], emits:['select','draft','complete'],

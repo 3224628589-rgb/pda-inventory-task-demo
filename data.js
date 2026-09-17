@@ -60,18 +60,23 @@ export function createReviewTask(now=Date.now()) {
   ...line,id:'review-'+index,after:null,countedAt:null,recordBefore:null,
   stockQuantity:line.before,initialAfter:null,initialCountedAt:null,reviewing:false,reviewedAt:null
  }));
- const counted=(index,after,minutesAgo)=>{const line=lines[index];line.after=after;line.countedAt=now-minutesAgo*60000;line.stockQuantity=after};
- counted(0,12,12);
- counted(1,10,9);
- lines[1].initialAfter=8;lines[1].initialCountedAt=now-11*60000;lines[1].reviewedAt=lines[1].countedAt;
  lines[2].before=10;lines[2].occupied=0;
- counted(2,12,6);
- lines[2].initialAfter=12;lines[2].initialCountedAt=now-8*60000;lines[2].reviewedAt=lines[2].countedAt;
- lines[3].initialAfter=1;lines[3].initialCountedAt=now-5*60000;lines[3].reviewing=true;
+ const initialResults=[12,8,12,1,2,17,23];
+ initialResults.forEach((after,index)=>{
+  const line=lines[index];
+  line.initialAfter=after;line.initialCountedAt=now-(18-index)*60000;
+  line.stockQuantity=after;
+  line.reviewing=true;
+ });
+ for(const [index,after,minutesAgo] of [[0,12,12],[1,10,9],[2,12,6]]){
+  const line=lines[index];
+  line.after=after;line.countedAt=now-minutesAgo*60000;
+  line.reviewedAt=line.countedAt;line.stockQuantity=after;line.reviewing=false;
+ }
  return {
-  id:'treview',fixtureVersion:2,title:'动销品盘点复盘演示',sn:'PD202609150005',
+  id:'treview',fixtureVersion:3,phase:'review',title:'动销品盘点复盘演示',sn:'PD202609150005',
   range:'A-0102-02-02 至 A-0102-02-07',method:'按货位',
-  note:'A-0102-02-04的正红花油正在复盘；完成后可展开该货位，对比初盘与复盘结果。',
+  note:'整张任务均为复盘：7项都有初盘记录，按货位逐条复盘并对比结果。',
   deadline:now+16220000,current:lines[3].id,direction:'asc',drafts:{},createdAt:now-3600000,completedAt:null,
   reviewSelectionIds:[lines[2].id,lines[3].id],lines
  };
