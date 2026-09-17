@@ -14,7 +14,7 @@ export const InventoryFlow={
   const searchPosition=computed(()=>searchIndex.value<0||!searchMatches.value.length?0:searchIndex.value+1);
   const visibleLines=g=>expanded.value===g.key?g.lines:props.task.completedAt?[]:g.done?g.lines.filter(l=>l.initialAfter!==null&&l.initialAfter!==undefined?l.initialAfter!==l.after:l.after!==l.before):[];
   const value=l=>props.task.drafts[l.id]??String(isReviewTask&&l.initialAfter!==null&&l.initialAfter!==undefined?l.initialAfter:l.before);
-  const hasReview=l=>l.initialAfter!==null&&l.initialAfter!==undefined;
+  const hasReview=l=>l.initialAfter!==null&&l.initialAfter!==undefined&&Number.isFinite(l.initialCountedAt);
   const reviewSame=l=>hasReview(l)&&Number(l.initialAfter)===Number(l.after);
   const reviewSummary=l=>`初盘复盘${reviewSame(l)?'一致':'不一致'}=初盘${varianceAt(l,l.initialAfter)}=复盘${varianceAt(l,l.after)}`;
   const focusedValues=new Map();
