@@ -1,5 +1,5 @@
 import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js';
-import { createFixture, createLargeTask, createRealInventoryTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js';
+import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js';
 import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js';
 
 import { InventoryFlow } from './inventory-flow.js';
@@ -22,6 +22,9 @@ function readState() {
   const real=createRealInventoryTask(),realIndex=state.tasks.findIndex(task=>task.id==='treal');
   if(realIndex<0)state.tasks.push(real);
   else if(state.tasks[realIndex].fixtureVersion!==real.fixtureVersion)state.tasks.splice(realIndex,1,real);
+  const review=createReviewTask(),reviewIndex=state.tasks.findIndex(task=>task.id==='treview');
+  if(reviewIndex<0)state.tasks.push(review);
+  else if(state.tasks[reviewIndex].fixtureVersion!==review.fixtureVersion)state.tasks.splice(reviewIndex,1,review);
   return state;
 }
 
