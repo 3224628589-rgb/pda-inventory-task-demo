@@ -54,6 +54,24 @@ export function createRealInventoryTask(now=Date.now()) {
  };
 }
 
+export function createReviewTask(now=Date.now()) {
+ const source=createFixture(now).tasks[0].lines;
+ const lines=source.map((line,index)=>({
+  ...line,id:'review-'+index,after:null,countedAt:null,recordBefore:null,
+  stockQuantity:line.before,initialAfter:null,initialCountedAt:null,reviewing:false,reviewedAt:null
+ }));
+ const firstResults=[12,12,12,1];
+ firstResults.forEach((after,index)=>{
+  lines[index].after=after;lines[index].countedAt=now-(4-index)*120000;lines[index].stockQuantity=after;
+ });
+ return {
+  id:'treview',fixtureVersion:1,title:'动销品盘点复盘演示',sn:'PD202609150005',
+  range:'A-0102-02-02 至 A-0102-02-07',method:'按货位',
+  note:'已完成4项，可展开A-0102-02-04，勾选批次后体验复盘流程。',
+  deadline:now+16220000,current:lines[4].id,direction:'asc',drafts:{},createdAt:now-3600000,completedAt:null,lines
+ };
+}
+
 export const doneCount = task => task.lines.filter(l => l.countedAt !== null).length;
 export const isDone = task => task.completedAt !== null;
 const collator = new Intl.Collator('zh-CN', {numeric:true});
@@ -64,6 +82,17 @@ export const orderedLines = task => [...task.lines].sort((a,b) => {
 export function variance(line) {
   const diff = line.after - line.before;
   return diff === 0 ? '账实相符' : (diff > 0 ? `盘盈${diff}` : `盘亏${Math.abs(diff)}`);
+}
+
+export function varianceAt(line, after) {
+ const diff = Number(after) - Number(line.before);
+ return diff === 0 ? '账实相符' : (diff > 0 ? `盘盈${diff}` : `盘亏${Math.abs(diff)}`);
+}
+
+export function resultText(line, after, prefix='') {
+ const value=Number(after),before=Number(line.before),result=varianceAt(line,value);
+ const equation=value===before?`盘后${value}=盘前${before}`:value>before?`盘后${value}-盘前${before}`:`盘前${before}-盘后${value}`;
+ return `${prefix}${result}=${equation}`;
 }
 export function quantityError(raw, occupied = 0) {
   if (raw === '' || raw === undefined || raw === null) return '请输入盘后数量';
