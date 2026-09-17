@@ -54,3 +54,24 @@
 .task-complete-mode .slot-group.group-open{border-color:#878787;box-shadow:0 4px 15px #7a7a7a18}
 .task-complete-mode .slot-group:not(.group-open){box-shadow:0 4px 15px #fc742617}
 .task-complete-mode .batch-summary{min-height:86px}
+
+/* 2026-09-17 · 用户稿 1857:9046 / 1857:8728，紧凑当前批次与复盘结果。 */
+.batch-active{min-height:277px}
+.active-bottom{min-height:90px}
+.next-button{min-height:90px}
+.quantity-pair{margin:4px 0 0;gap:12px}
+.quantity-pair label{width:88px;display:flex;flex-direction:row;align-items:center;gap:4px}
+.quantity-pair output,.quantity-pair input{width:64px}
+.review-active{min-height:298px}
+.review-active .active-bottom,.review-active .next-button{min-height:111px}
+.initial-result-chip{display:inline-flex!important;max-width:100%;padding:3px 11px;border-radius:12px;background:#ffd4ad;color:#fc641f!important;font-size:10px!important;font-weight:500!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.batch-summary{position:relative}
+.review-results{margin-top:3px;padding-right:66px}
+.review-results p{font-size:10px;line-height:16px;margin:0;color:#767b87}
+.review-results b{color:#fc641f;font-weight:600}
+.review-results span{color:#767b87;font-weight:400}
+.review-badge{position:absolute;right:8px;bottom:8px;padding:2px 7px;border-radius:10px;background:#ff9b57;color:white;font-size:9px;line-height:17px}
+.review-badge.different{background:#ff7f72}
+.review-summary{color:#767b87;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.result-formula{color:#fc641f;font-weight:600}
+.result-formula span{font-weight:400}
