@@ -63,8 +63,8 @@
 .quantity-pair{margin:4px 0 0;gap:12px}
 .quantity-pair label{width:88px;display:flex;flex-direction:row;align-items:center;gap:4px}
 .quantity-pair output,.quantity-pair input{width:64px}
-.review-active{min-height:298px}
-.review-active .active-bottom,.review-active .next-button{min-height:111px}
+.batch-active.review-active{min-height:298px}
+.batch-active.review-active .active-bottom,.batch-active.review-active .next-button{min-height:111px}
 .initial-result-chip{display:inline-flex!important;max-width:100%;padding:4px 8px;border-radius:12px;background:#ffd4ad;color:#fc641f!important;font-size:11px!important;font-weight:600!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .batch-summary{position:relative}
 .review-results{margin-top:3px;padding-right:66px}
@@ -77,3 +77,31 @@
 .result-formula{color:#fc641f;font-weight:600}
 .result-formula span{font-weight:400}
 .phase-badge{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:4px;background:#fff0e6;color:#f36a23;font-size:10px;line-height:15px;font-weight:600;vertical-align:2px;white-space:nowrap}
+
+/* 2026-09-18 · 用户优化稿：盘前叠在图片、盘后纵向步进、完成按钮固定起点。 */
+.batch-active,.batch-active.review-active{min-height:0;padding:10px 9px}
+.active-layout{display:grid;grid-template-columns:minmax(0,1fr) 58px;gap:10px;align-items:stretch}
+.active-primary{display:flex;min-width:0;flex-direction:column;justify-content:flex-end;gap:10px}
+.active-photo-wrap{position:relative;min-width:0}
+.active-photo{width:100%;height:157px;border-radius:12px}
+.before-chip{position:absolute;left:6px;top:6px;display:inline-flex;align-items:center;min-height:23px;padding:5px 10px;border-radius:15px;background:#fff;color:#fc641f;font-size:11px;line-height:13px;font-weight:700;white-space:nowrap}
+.active-info{display:flex;min-width:0;flex-direction:column;gap:9px}
+.active-info h2{font-size:15px;line-height:20px;white-space:normal;overflow-wrap:anywhere}
+.active-info p{margin:0;font-size:13px;line-height:18px;font-weight:600;color:#767676;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.active-info .initial-result-chip{align-self:stretch;max-width:100%;margin:0;padding:4px 8px;justify-content:center;line-height:16px}
+.active-actions{display:flex;width:58px;min-width:0;flex-direction:column;gap:10px}
+.after-stack{display:grid;grid-template-rows:15px 28px 33px 28px;width:58px;text-align:center}
+.after-label{color:#fc641f;font-size:11px;line-height:13px;font-weight:700;white-space:nowrap}
+.after-stack input{width:58px;height:33px;padding:0 4px;border:0;border-radius:0;background:#f5f6f8;color:#777;font-size:19px;line-height:33px;text-align:center;outline:none}
+.quantity-step{display:flex;width:58px;height:28px;align-items:center;justify-content:center;padding:0;background:#ff7628;color:#fff;font-size:0;line-height:1}
+.quantity-step:before{display:flex;width:23px;height:23px;align-items:center;justify-content:center;border-radius:50%;background:#fff;color:#ff7628;font-size:23px;font-weight:700;line-height:20px}
+.step-minus{border-radius:6px 6px 0 0}.step-minus:before{content:"−"}
+.step-plus{border-radius:0 0 6px 6px}.step-plus:before{content:"＋";font-size:25px}
+.next-button,.batch-active.review-active .next-button{width:58px;min-height:105px;height:auto;flex:1;border-radius:7px;padding:10px 9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;font-size:20px;line-height:26px}
+.next-button span{white-space:nowrap}
+.next-arrow{width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:13px solid #fff}
+.batch-active>.field-error{margin:8px 0 0}
+.return-current{position:absolute;left:50%;z-index:6;display:flex;align-items:center;gap:7px;min-height:40px;padding:8px 15px;border-radius:22px;background:#fff;color:#fc641f;box-shadow:0 5px 18px #52220730,0 0 0 1px #ffb17f;font-size:14px;font-weight:600;transform:translateX(-50%)}
+.return-current.is-top{top:10px}.return-current.is-bottom{bottom:10px}
+.return-current i{font-style:normal;font-size:17px;line-height:1}
+@media(max-width:374px){.active-layout{grid-template-columns:minmax(0,1fr) 58px;gap:8px}.active-info h2{font-size:13px}}
