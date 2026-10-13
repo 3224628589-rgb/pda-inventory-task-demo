@@ -125,3 +125,13 @@
 .trace-success{width:140px;height:140px;margin:20px auto 4px;background:#ff9250;border:20px solid #ffc37d;border-radius:50%;box-shadow:0 3px 0 #ff9753}.trace-success svg{width:100%;height:100%}
 .trace-dots{display:flex;justify-content:center;gap:5px;height:18px;align-items:flex-end;margin-top:5px}.trace-dots i{height:10px;width:10px;background:#fff;border-radius:50%}.trace-dots i.active{background:#ff7821}
 @media(max-width:374px){.trace-layout{gap:7px}.trace-code-row>span{font-size:10px}.trace-code-row button{width:30px;min-width:30px}.trace-success{width:120px;height:120px}}
+/* PRD 521: fixed count rows, editable numeric codes and blind result guidance. */
+.trace-code-list{min-height:132px;max-height:264px;overflow-anchor:none}
+.trace-code-row{height:38px;min-height:38px;margin-bottom:6px;padding-left:5px;box-sizing:border-box}
+.trace-code-row input{min-width:0;width:0;flex:1;padding:0;border:0;background:none;font-size:11px;letter-spacing:-.3px;font-variant-numeric:tabular-nums;color:#ff4b50;outline-offset:-2px}
+.trace-code-row input.trace-complete{color:#168cf9}.trace-code-row input::placeholder{color:#bbb;letter-spacing:0}
+.trace-code-row button{height:36px;width:32px;min-width:32px}.trace-count .trace-rule{font-size:10px;color:#a49182;line-height:16px}
+.trace-lookup-error{color:#d34b3c;font-size:10px;line-height:16px;margin:4px 0}.trace-lookup-error button{color:#fa7827;margin-left:5px;padding:5px}
+.trace-result .trace-result-note{font-size:13px;line-height:20px;font-weight:600;margin-bottom:10px}
+.trace-modal-shade{position:fixed;inset:0;background:#0005;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px}
+.trace-scanner{background:#fff;border-radius:12px;padding:20px;max-width:340px;width:100%;color:#171c2d}.trace-scanner h3{font-size:17px;margin:0}.trace-scanner input{width:100%;min-width:0;margin-top:12px;border:1px solid #ddd;border-radius:6px;padding:10px;font-size:16px}.trace-scanner form>div,.trace-scanner>div{display:flex;justify-content:flex-end;gap:16px;margin-top:16px}.trace-scanner button{padding:10px;color:#ff7821;min-height:44px}

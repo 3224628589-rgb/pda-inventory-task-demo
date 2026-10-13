@@ -1,8 +1,8 @@
-import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.10.13.2';
-import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.10.13.2';
-import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.10.13.2';
+import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.10.13.3';
+import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.10.13.3';
+import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.10.13.3';
 
-import { InventoryFlow } from './inventory-flow.js?v=2026.10.13.2';
+import { InventoryFlow } from './inventory-flow.js?v=2026.10.13.3';
 const SESSION_KEY = 'pda-inventory-phase2-v1';
 function readState() {
   let state;
@@ -25,6 +25,14 @@ function readState() {
   const review=createReviewTask(),reviewIndex=state.tasks.findIndex(task=>task.id==='treview');
   if(reviewIndex<0)state.tasks.push(review);
   else if(state.tasks[reviewIndex].fixtureVersion!==review.fixtureVersion)state.tasks.splice(reviewIndex,1,review);
+  // Migrate only phase-two trace results to PRD 521's batch-level quantity.
+  for(const task of state.tasks.filter(t=>t.phase!=='review'))for(const line of task.lines){
+    const record=line.traceRecord;if(!record||record.schema===2)continue;
+    const codes=record.codes||[],enteredQuantity=record.quantity;
+    const quantity=codes.length?codes.filter(c=>c.batch===line.batch).length:enteredQuantity;
+    line.traceRecord={...record,schema:2,enteredQuantity,quantity,hasCodes:codes.length>0};
+    line.after=quantity;line.stockQuantity=quantity;
+  }
   return state;
 }
 

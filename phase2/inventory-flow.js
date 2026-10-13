@@ -1,6 +1,6 @@
-import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.10.13.2';
-import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.10.13.2';
-import {TraceCount,traceError,traceDraft} from './trace-count.js?v=2026.10.13.2';
+import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.10.13.3';
+import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.10.13.3';
+import {TraceCount,traceError,traceDraft,traceResult} from './trace-count.js?v=2026.10.13.3';
 export const InventoryFlow={
  components:{TraceCount},
  props:['task'],emits:['notice','finished'],
@@ -94,11 +94,12 @@ export const InventoryFlow={
    if(isReviewTask&&!hasReview(l)){error.value='缺少初盘记录，不能完成复盘';return}
    error.value=quantityError(value(l),l.occupied);if(error.value)return;
    if(!isReviewTask){error.value=traceError(props.task,l);if(error.value)return;if(traceDraft(props.task,l).step!==3){error.value='请先完成扫码并核对结果';return}}
-   const after=Number(value(l)),wasReview=isReviewTask;document.activeElement?.blur();
+   const trace=isReviewTask?null:traceResult(props.task,l);
+   const after=isReviewTask?Number(value(l)):trace.quantity,wasReview=isReviewTask;document.activeElement?.blur();
    await change(()=>{
     const timestamp=Date.now();
     if(isReviewTask){l.after=after;l.stockQuantity=after;l.countedAt=timestamp;l.reviewedAt=timestamp;l.reviewing=false}
-    else{l.recordBefore=l.before;l.after=after;l.stockQuantity=after;l.countedAt=timestamp;l.traceRecord={quantity:after,codes:traceDraft(props.task,l).codes.map(c=>({...c})),confirmedAt:timestamp};delete props.task.traceDrafts[l.id]}
+    else{l.recordBefore=l.before;l.after=after;l.stockQuantity=after;l.countedAt=timestamp;l.traceRecord={...trace,schema:2,confirmedAt:timestamp};delete props.task.traceDrafts[l.id]}
     delete props.task.drafts[l.id];
     const all=orderedLines(props.task),next=all.find(x=>x.countedAt===null);
     if(next){expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id}
@@ -200,7 +201,7 @@ export const InventoryFlow={
    <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="check-circle" :class="{checked:selected.includes(l.id)}" @click="toggle(l)" :aria-label="'选择重新盘点 '+l.name+' '+l.batch">{{selected.includes(l.id)?'✓':''}}</button>
    <section :data-line="l.id" class="batch-card" :class="{'batch-active':!g.done&&current===l.id&&expanded===g.key,'review-active':isReviewTask,'batch-done':g.done,'is-search-match':isSearchMatch(l)}">
     <template v-if="!g.done&&current===l.id&&expanded===g.key"><trace-count v-if="!isReviewTask" :task="task" :line="l" :busy="busy" @finish="complete(l)"/><div v-else class="active-layout"><div class="active-primary"><div class="active-photo-wrap"><img class="active-photo" :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><span v-if="isReviewTask" class="before-chip">盘前数量{{l.before}}</span></div><div class="active-info"><h2>{{l.name}} | {{l.spec}}</h2><p>批号{{l.batch}}/有效期 {{l.expiry}}</p><p v-if="isReviewTask" class="initial-result-chip">{{resultText(l,l.initialAfter,'初盘')}}</p></div></div><div class="active-actions"><label class="after-stack"><span class="after-label">盘后数量</span><button type="button" class="quantity-step step-minus" @click="adjust(l,-1)" aria-label="盘后数量减一">−</button><input :id="'quantity-'+l.id" :value="value(l)" @input="draft(l,$event)" @focus="focus(l,$event)" @blur="blur(l)" @keydown.enter.prevent="complete(l)" inputmode="numeric" autocomplete="off" aria-label="盘后数量" placeholder="请输入" :aria-invalid="!!error"><button type="button" class="quantity-step step-plus" @click="adjust(l,1)" aria-label="盘后数量加一">＋</button></label><button class="next-button" :disabled="busy" @click="complete(l)" :aria-label="(isReviewTask?'复盘':'盘点')+'完成，下一条'"><span>{{isReviewTask?'复盘':'盘点'}}<br>完成</span><i class="next-arrow" aria-hidden="true"></i></button></div></div><p v-if="error" class="field-error" role="alert">{{error}}</p></template>
-    <button v-else class="batch-summary" @click="g.done?activate(g):activate(g,l)"><img :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><template v-if="g.done"><template v-if="hasReview(l)&&expanded===g.key"><div class="review-results"><p><b>初盘{{varianceAt(l,l.initialAfter)}}</b><span>{{resultText(l,l.initialAfter).slice(varianceAt(l,l.initialAfter).length)}}</span></p><p><b>复盘{{varianceAt(l,l.after)}}</b><span>{{resultText(l,l.after).slice(varianceAt(l,l.after).length)}}</span></p></div><span class="review-badge" :class="{different:!reviewSame(l)}">初复盘{{reviewSame(l)?'一致':'差异'}}</span></template><p v-else-if="hasReview(l)" class="result-formula review-summary">{{reviewSummary(l)}}</p><p v-else class="blind-count-result">盘后{{l.after}}<span v-if="l.traceRecord"> · 已扫{{l.traceRecord.codes.length}}个追溯码</span></p></template><p v-else-if="isReviewTask">当前数量：{{l.before}}</p></div></button>
+    <button v-else class="batch-summary" @click="g.done?activate(g):activate(g,l)"><img :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><template v-if="g.done"><template v-if="hasReview(l)&&expanded===g.key"><div class="review-results"><p><b>初盘{{varianceAt(l,l.initialAfter)}}</b><span>{{resultText(l,l.initialAfter).slice(varianceAt(l,l.initialAfter).length)}}</span></p><p><b>复盘{{varianceAt(l,l.after)}}</b><span>{{resultText(l,l.after).slice(varianceAt(l,l.after).length)}}</span></p></div><span class="review-badge" :class="{different:!reviewSame(l)}">初复盘{{reviewSame(l)?'一致':'差异'}}</span></template><p v-else-if="hasReview(l)" class="result-formula review-summary">{{reviewSummary(l)}}</p><p v-else class="blind-count-result">盘后{{l.after}}<span v-if="l.traceRecord"> · {{l.traceRecord.hasCodes?'已扫'+l.traceRecord.codes.length+'个追溯码':'无追溯码'}}</span></p></template><p v-else-if="isReviewTask">当前数量：{{l.before}}</p></div></button>
    </section>
   </div>
   <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="recount-button" :disabled="!selected.length||busy" @click="recount(g)">重新盘点</button>
