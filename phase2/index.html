@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PDA 盘点 · 二期</title>
+</head>
+<body>
+  <div class="preview-heading"><strong>PDA 盘点 · 二期</strong><span>追溯码盘点 · <span id="demo-version">版本加载中</span></span></div>
+  <div id="app" v-cloak></div>
+  <p class="preview-note">二期 Demo · 追溯码采用本地模拟数据</p>
+  <script type="module">
+    const response = await fetch(`./version.json?check=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('无法读取 Demo 版本登记');
+    const release = await response.json();
+    window.PDA_DEMO_RELEASE = release;
+    document.querySelector('#demo-version').textContent = `v${release.version}`;
+    const stylesheet = document.createElement('link');
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = `./style.css?v=${encodeURIComponent(release.version)}`;
+    document.head.append(stylesheet);
+    await new Promise(resolve => { stylesheet.onload = resolve; stylesheet.onerror = resolve; });
+    await import(`./app.js?v=${encodeURIComponent(release.version)}`);
+  </script>
+</body>
+</html>

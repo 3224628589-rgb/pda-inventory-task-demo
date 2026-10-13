@@ -1,0 +1,209 @@
+import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.10.13.2';
+import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.10.13.2';
+import {TraceCount,traceError,traceDraft} from './trace-count.js?v=2026.10.13.2';
+export const InventoryFlow={
+ components:{TraceCount},
+ props:['task'],emits:['notice','finished'],
+ setup(props,{emit,expose}){
+  const isReviewTask=props.task.phase==='review';
+  const list=ref(null),expanded=ref(''),current=ref(''),selected=ref([]),reviewIds=ref(isReviewTask&&props.task.lines.some(l=>l.reviewing)?props.task.reviewSelectionIds||[]:[]),busy=ref(false),error=ref(''),search=ref(''),searchQuery=ref(''),searchInput=ref(null),searchIndex=ref(-1);
+  const summary=ref(null),summaryOpen=ref(!props.task.lines.some(l=>l.reviewing));
+  const stage=ref(null),scrubbing=ref(false),scrubKey=ref(''),guideTop=ref(0);
+  const groups=computed(()=>{const all=orderedLines(props.task),out=[];for(const done of [true,false]){const map=new Map();for(const line of all.filter(l=>(l.countedAt!==null)===done)){const key=(done?'done:':'todo:')+line.slot;if(!map.has(key)){const g={key,slot:line.slot,done,lines:[]};map.set(key,g);out.push(g)}map.get(key).lines.push(line)}}return out});
+  const keyFor=l=>(l.countedAt!==null?'done:':'todo:')+l.slot;
+  const activeGroup=computed(()=>groups.value.find(g=>g.key===expanded.value));
+  const currentInventory=computed(()=>orderedLines(props.task).find(l=>l.countedAt===null)||null);
+  const currentIsExpanded=computed(()=>!!currentInventory.value&&expanded.value===keyFor(currentInventory.value)&&current.value===currentInventory.value.id);
+  const showReturnCurrent=computed(()=>!!currentInventory.value&&!currentIsExpanded.value);
+  const returnCurrentEdge=computed(()=>{
+   const anchor=currentInventory.value;if(!anchor)return'bottom';
+   const anchorGroup=groups.value.findIndex(g=>g.key===keyFor(anchor)),viewGroup=groups.value.findIndex(g=>g.key===expanded.value);
+   if(viewGroup<0||anchorGroup>viewGroup)return'bottom';
+   if(anchorGroup<viewGroup)return'top';
+   const group=groups.value[anchorGroup],anchorLine=group?.lines.findIndex(l=>l.id===anchor.id)??0,viewLine=group?.lines.findIndex(l=>l.id===current.value)??-1;
+   return viewLine>=0&&anchorLine<viewLine?'top':'bottom';
+  });
+  const searchMatches=computed(()=>{const q=searchQuery.value.toLowerCase();return q?orderedLines(props.task).filter(l=>[l.slot,l.name,l.spec,l.batch,l.barcode].some(value=>String(value||'').toLowerCase().includes(q))):[]});
+  const searchPosition=computed(()=>searchIndex.value<0||!searchMatches.value.length?0:searchIndex.value+1);
+  const visibleLines=g=>expanded.value===g.key?g.lines:props.task.completedAt?[]:g.done&&isReviewTask?g.lines.filter(l=>l.initialAfter!==null&&l.initialAfter!==undefined&&l.initialAfter!==l.after):[];
+  const value=l=>props.task.drafts[l.id]??(isReviewTask&&l.initialAfter!==null&&l.initialAfter!==undefined?String(l.initialAfter):'');
+  const hasReview=l=>l.initialAfter!==null&&l.initialAfter!==undefined&&Number.isFinite(l.initialCountedAt);
+  const reviewSame=l=>hasReview(l)&&Number(l.initialAfter)===Number(l.after);
+  const reviewSummary=l=>`初盘复盘${reviewSame(l)?'一致':'不一致'}=初盘${varianceAt(l,l.initialAfter)}=复盘${varianceAt(l,l.after)}`;
+  const focusedValues=new Map();
+  let motion=0,manual=false,programmatic=false,scrollTimer,frame,scanFrame,finishFrame,alive=true,animations=[],touching=false,candidate=null,spaceObserver;
+  const reduce=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const target=()=>!list.value?null:activeGroup.value?.done?list.value.querySelector('[data-group="'+expanded.value+'"]'):list.value.querySelector('[data-line="'+current.value+'"]');
+  function stop(){motion++;cancelAnimationFrame(frame);finishFrame?.();finishFrame=null;animations.forEach(a=>a.cancel());animations=[];programmatic=false;busy.value=false}
+  async function center(token=motion,instant=false){
+   await nextTick(); if(!alive||token!==motion||!target())return;
+   updateSpacing();programmatic=true;const el=target(),box=list.value,rect=el.getBoundingClientRect(),view=box.getBoundingClientRect(),screen=document.querySelector('#app').getBoundingClientRect();
+   const pending=!activeGroup.value?.done;
+   const destination=pending?view.top+24:Math.max(view.top+rect.height/2,Math.min((screen.top+screen.bottom)/2,view.bottom-rect.height/2));
+   const source=pending?rect.top:rect.top+rect.height/2;
+   const top=Math.max(0,Math.min(box.scrollHeight-box.clientHeight,box.scrollTop+source-destination));
+   const start=box.scrollTop,duration=reduce()||instant?0:320,t0=performance.now();
+   await new Promise(resolve=>{finishFrame=resolve;function tick(t){if(token!==motion||!alive){resolve();return}const p=duration?Math.min(1,(t-t0)/duration):1;box.scrollTop=start+(top-start)*(1-Math.pow(1-p,3));if(p<1)frame=requestAnimationFrame(tick);else{finishFrame=null;resolve()}}frame=requestAnimationFrame(tick)});
+   if(token===motion){programmatic=false;busy.value=false}
+  }
+  async function change(update,instant=false){
+   stop();const token=motion;busy.value=true;manual=false;scrubbing.value=false;scrubKey.value='';candidate=null;clearTimeout(scrollTimer);cancelAnimationFrame(scanFrame);
+   const before=new Map([...list.value?.querySelectorAll('[data-group]')||[]].map(e=>[e.dataset.group,e.getBoundingClientRect()]));
+   update();error.value='';selected.value=[];await nextTick();
+   if(!alive||token!==motion)return;
+   if(!reduce()&&!instant){
+    for(const el of list.value.querySelectorAll('[data-group]')){const old=before.get(el.dataset.group),r=el.getBoundingClientRect();if(old){const dy=old.top-r.top;const a=el.animate([{transform:`translateY(${dy}px)`,height:old.height+'px'},{transform:'translateY(0)',height:r.height+'px'}],{duration:240,easing:'cubic-bezier(.2,.7,.2,1)'});animations.push(a)}}
+    await Promise.all(animations.map(a=>a.finished.catch(()=>{})));animations=[];
+   }
+   if(token===motion)await center(token,instant);
+  }
+  function updateSpacing(){
+   if(!list.value||!stage.value)return;
+   const screen=document.querySelector('#app').getBoundingClientRect(),view=stage.value.getBoundingClientRect();
+   const mid=(screen.top+screen.bottom)/2;
+   // Half-screen gutters allow either end to reach the center at any card height.
+   list.value.style.setProperty('--list-top-space',Math.max(12,mid-view.top)+'px');
+   list.value.style.setProperty('--list-bottom-space',Math.max(12,view.bottom-mid)+'px');
+   if(scrubbing.value)updateCandidate();
+  }
+  function collapseSummary(){
+   if(!summaryOpen.value||!summary.value||!list.value)return;
+   const anchor=list.value.querySelector('[data-group]'),oldTop=anchor?.getBoundingClientRect().top;
+   summaryOpen.value=false;
+   // Commit before child handlers measure; preserve the control under the pointer.
+   summary.value.style.height='0px';updateSpacing();
+   if(anchor)list.value.scrollTop+=anchor.getBoundingClientRect().top-oldTop;
+   nextTick(async()=>{updateSpacing();await center(motion,true)});
+   if(scrubbing.value)updateCandidate();
+  }
+  async function expandSummary(){
+   if(summaryOpen.value||!summary.value||!list.value)return;
+   const anchor=list.value.querySelector('[data-group]'),oldTop=anchor?.getBoundingClientRect().top;
+   summary.value.style.height='';summaryOpen.value=true;await nextTick();updateSpacing();
+   if(anchor&&oldTop!==undefined)list.value.scrollTop+=anchor.getBoundingClientRect().top-oldTop;
+   await center(motion,true);
+  }
+  function activate(group,line){const keep=group.done?reviewIds.value.filter(id=>group.lines.some(item=>item.id===id&&item.countedAt!==null)):[];change(()=>{expanded.value=group.key;current.value=group.done?'':(line||group.lines[0]).id;props.task.current=currentInventory.value?.id||null}).then(()=>{if(keep.length)selected.value=keep})}
+  function returnToCurrent(){const line=currentInventory.value;if(!line||busy.value)return;change(()=>{expanded.value=keyFor(line);current.value=line.id;props.task.current=line.id})}
+  function draft(l,event){props.task.drafts[l.id]=event.target.value;error.value=''}
+  function focus(l,event){focusedValues.set(l.id,value(l));event.target.select()}
+  function blur(l){if(isReviewTask&&props.task.drafts[l.id]==='')props.task.drafts[l.id]=focusedValues.get(l.id)??String(l.initialAfter??'')}
+  function adjust(l,step){if(busy.value||l.id!==current.value||l.countedAt!==null)return;const raw=value(l),n=raw===''?NaN:Number(raw),fallback=isReviewTask?Number(l.initialAfter??0):0;props.task.drafts[l.id]=String(Math.max(0,Math.min(999999,(Number.isFinite(n)?n:fallback)+step)));error.value=''}
+  async function complete(l){
+   if(busy.value||l.id!==current.value||l.countedAt!==null)return;
+   if(isReviewTask&&!hasReview(l)){error.value='缺少初盘记录，不能完成复盘';return}
+   error.value=quantityError(value(l),l.occupied);if(error.value)return;
+   if(!isReviewTask){error.value=traceError(props.task,l);if(error.value)return;if(traceDraft(props.task,l).step!==3){error.value='请先完成扫码并核对结果';return}}
+   const after=Number(value(l)),wasReview=isReviewTask;document.activeElement?.blur();
+   await change(()=>{
+    const timestamp=Date.now();
+    if(isReviewTask){l.after=after;l.stockQuantity=after;l.countedAt=timestamp;l.reviewedAt=timestamp;l.reviewing=false}
+    else{l.recordBefore=l.before;l.after=after;l.stockQuantity=after;l.countedAt=timestamp;l.traceRecord={quantity:after,codes:traceDraft(props.task,l).codes.map(c=>({...c})),confirmedAt:timestamp};delete props.task.traceDrafts[l.id]}
+    delete props.task.drafts[l.id];
+    const all=orderedLines(props.task),next=all.find(x=>x.countedAt===null);
+    if(next){expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id}
+    else{props.task.current=null;current.value='';expanded.value=keyFor(l);emit('notice',isReviewTask?'全部明细已复盘，请提交任务':'全部明细已盘点，请提交任务')}
+   });
+   if(wasReview)selected.value=reviewIds.value.filter(id=>props.task.lines.some(item=>item.id===id&&item.countedAt!==null));
+  }
+  async function submitTask(){
+   if(busy.value||props.task.completedAt)return;
+   if(isReviewTask&&props.task.lines.some(l=>!hasReview(l))){emit('notice','复盘任务缺少初盘记录，不能提交');return}
+   const pending=orderedLines(props.task).filter(l=>l.countedAt===null);
+   if(pending.length){
+    const next=pending[0];collapseSummary();
+    await change(()=>{expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id});
+    emit('notice',`还有${pending.length}项未${isReviewTask?'复盘':'盘点'}，请先完成当前明细`);return;
+   }
+   const first=orderedLines(props.task)[0];
+   await change(()=>{props.task.completedAt=Date.now();props.task.current=null;current.value='';if(first)expanded.value=keyFor(first)});
+   emit('finished');emit('notice','任务提交成功');
+  }
+  function toggle(l){selected.value=selected.value.includes(l.id)?selected.value.filter(x=>x!==l.id):[...selected.value,l.id];reviewIds.value=[...selected.value]}
+  function selectAll(g){selected.value=g.lines.every(l=>selected.value.includes(l.id))?[]:g.lines.map(l=>l.id);reviewIds.value=[...selected.value]}
+  function recount(g){
+   if(props.task.completedAt||!selected.value.length||busy.value)return;
+   const ids=[...selected.value];
+   if(isReviewTask&&g.lines.some(l=>ids.includes(l.id)&&!hasReview(l))){emit('notice','缺少初盘记录，不能重新复盘');return}
+   reviewIds.value=ids;
+   change(()=>{
+    for(const l of g.lines.filter(l=>ids.includes(l.id))){
+     if(isReviewTask){l.reviewing=true;l.after=null;l.countedAt=null;l.reviewedAt=null}
+     else{l.before=Number.isFinite(l.stockQuantity)?l.stockQuantity:Number(l.after??l.before);l.after=null;l.countedAt=null;l.recordBefore=null}
+     delete props.task.drafts[l.id];
+     if(!isReviewTask){delete props.task.traceDrafts?.[l.id];delete l.traceRecord}
+    }
+    const next=orderedLines(props.task).find(l=>ids.includes(l.id));
+    expanded.value=keyFor(next);current.value=next.id;props.task.current=next.id;
+   });
+   emit('notice',isReviewTask?'已重新打开所选复盘明细':'已重新打开所选盘点明细');
+  }
+  function jumpToSearch(index){
+   const matches=searchMatches.value;if(!matches.length){searchIndex.value=-1;emit('notice','未找到匹配的货位、商品或批次');return}
+   searchInput.value?.blur();searchIndex.value=(index+matches.length)%matches.length;const l=matches[searchIndex.value];collapseSummary();activate(groups.value.find(g=>g.key===keyFor(l)),l);
+  }
+  function searchHit(){const q=search.value.trim();if(!q){searchInput.value?.focus();return}searchQuery.value=q;searchIndex.value=-1;nextTick(()=>jumpToSearch(0))}
+  function searchMove(step){if(!searchQuery.value){searchHit();return}jumpToSearch(searchIndex.value<0?(step<0?searchMatches.value.length-1:0):searchIndex.value+step)}
+  function clearSearch(){search.value='';searchQuery.value='';searchIndex.value=-1;error.value='';searchInput.value?.focus()}
+  const isSearchMatch=l=>!!searchQuery.value&&searchMatches.value.some(match=>match.id===l.id);
+  const groupSearchMatches=g=>g.lines.filter(isSearchMatch).length;
+  const editing=()=>document.activeElement?.tagName==='INPUT';
+  // Browsing feedback is separate from the committed expanded card.
+  function updateCandidate(){
+   if(!alive||!list.value||!stage.value||!manual||!scrubbing.value)return;
+   const screen=document.querySelector('#app').getBoundingClientRect(),view=stage.value.getBoundingClientRect();
+   const mid=Math.max(view.top,Math.min((screen.top+screen.bottom)/2,view.bottom));
+   guideTop.value=mid-view.top;
+   const candidates=[];
+   for(const g of groups.value){
+    const el=list.value.querySelector('[data-group="'+g.key+'"]');if(!el)continue;
+    const r=el.getBoundingClientRect();if(r.bottom<view.top||r.top>view.bottom)continue;
+    let l;
+    if(!g.done&&g.key===expanded.value){
+     const rows=g.lines.map(line=>({line,rect:list.value.querySelector('[data-line="'+line.id+'"]')?.getBoundingClientRect()})).filter(x=>x.rect);
+     rows.sort((a,b)=>distance(a.rect,mid)-distance(b.rect,mid));l=rows[0]?.line;
+    }
+    candidates.push({g,l,rect:r});
+   }
+   candidates.sort((a,b)=>distance(a.rect,mid)-distance(b.rect,mid));
+   candidate=candidates[0]||null;scrubKey.value=candidate?.g.key||'';
+  }
+  function distance(r,mid){return mid<r.top?r.top-mid:mid>r.bottom?mid-r.bottom:0}
+  function gesture(){if(editing())return;stop();manual=true;clearTimeout(scrollTimer)}
+  function touchStart(){if(editing())return;touching=true;gesture()}
+  function touchEnd(){touching=false;if(manual&&scrubbing.value)settle()}
+  function finishScrub(){
+   if(!manual||touching||programmatic)return;
+   if(editing()){manual=false;scrubbing.value=false;scrubKey.value='';return}
+   updateCandidate();const hit=candidate;
+   manual=false;scrubbing.value=false;scrubKey.value='';candidate=null;
+   if(hit)activate(hit.g,hit.l);
+  }
+  function settle(){
+   if(!manual||programmatic||editing())return;
+   scrubbing.value=true;cancelAnimationFrame(scanFrame);scanFrame=requestAnimationFrame(updateCandidate);
+   clearTimeout(scrollTimer);if(!touching)scrollTimer=setTimeout(finishScrub,220);
+  }
+  function sort(){collapseSummary();change(()=>{props.task.direction=props.task.direction==='asc'?'desc':'asc'})}
+  watch(search,()=>{searchIndex.value=-1;searchQuery.value=''});
+  watch(currentInventory,line=>{props.task.current=line?.id||null});
+  onMounted(()=>{updateSpacing();spaceObserver=new ResizeObserver(updateSpacing);spaceObserver.observe(stage.value);const l=currentInventory.value||orderedLines(props.task)[0];if(l){expanded.value=keyFor(l);current.value=l.countedAt===null?l.id:'';props.task.current=currentInventory.value?.id||null;center(motion,true)}});
+  onUnmounted(()=>{alive=false;spaceObserver?.disconnect();stop();clearTimeout(scrollTimer);cancelAnimationFrame(scanFrame)});
+  expose({submitTask});
+  return{list,summary,summaryOpen,collapseSummary,expandSummary,stage,scrubbing,scrubKey,guideTop,isReviewTask,groups,expanded,current,currentInventory,showReturnCurrent,returnCurrentEdge,returnToCurrent,selected,reviewIds,busy,error,search,searchQuery,searchInput,searchMatches,searchPosition,visibleLines,value,activate,draft,focus,blur,adjust,complete,toggle,selectAll,recount,searchHit,searchMove,clearSearch,isSearchMatch,groupSearchMatches,gesture,touchStart,touchEnd,settle,sort,timeText,variance,varianceAt,resultText,hasReview,reviewSame,reviewSummary};
+ },
+ template:`<div ref="summary" class="task-summary-collapse" :class="{'is-collapsed':!summaryOpen}" :aria-hidden="!summaryOpen" :inert="!summaryOpen?true:undefined"><slot name="summary"/></div><button v-if="!summaryOpen" class="summary-divider" @click="expandSummary" aria-label="展开任务信息"><span>任务信息</span><i>⌄</i></button><div class="flow-tools"><form @submit.prevent="searchHit"><input ref="searchInput" v-model="search" placeholder="货位 / 商品 / 批次 / 条码" aria-label="搜索任务明细" inputmode="search" enterkeyhint="search" autocomplete="off"><button v-if="search" type="button" class="find-clear" @click="clearSearch" aria-label="清空任务搜索"><img src="./assets/m_icon_clear.webp" alt=""></button><span v-if="searchQuery" class="find-count" aria-live="polite">{{searchPosition}}/{{searchMatches.length}}</span><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(-1)" aria-label="上一个搜索结果">↑</button><button v-if="searchQuery&&searchMatches.length" type="button" class="find-step" @click="searchMove(1)" aria-label="下一个搜索结果">↓</button><button type="submit" class="find-submit">搜索</button></form><button @click="sort" aria-label="切换货位排序">{{task.direction==='asc'?'A→Z':'Z→A'}} ⇅</button></div>
+ <div class="inventory-scroll-stage" ref="stage" :class="{'is-scrubbing':scrubbing,'task-complete-mode':task.completedAt}"><div v-if="scrubbing" class="scrub-guide" :style="{top:guideTop+'px'}" aria-hidden="true"></div><button v-if="showReturnCurrent" class="return-current" :class="'is-'+returnCurrentEdge" @click="returnToCurrent" :aria-label="'返回当前'+(isReviewTask?'复盘':'盘点')"><i aria-hidden="true">{{returnCurrentEdge==='top'?'↑':'↓'}}</i><span>返回当前{{isReviewTask?'复盘':'盘点'}}</span></button><main class="page-scroll slot-list" ref="list" @click.capture="collapseSummary" @focusin.capture="collapseSummary" @input.capture="collapseSummary" @keydown.capture="collapseSummary" @wheel.capture.passive="collapseSummary" @touchstart.capture.passive="collapseSummary" @wheel.passive="gesture" @touchstart.passive="touchStart" @touchend.passive="touchEnd" @touchcancel.passive="touchEnd" @scroll.passive="settle" aria-label="盘点明细" :aria-busy="busy">
+ <article v-for="g in groups" :key="g.key" :data-group="g.key" class="slot-group" :class="{'group-done':g.done,'group-open':expanded===g.key,'is-scrub-target':scrubbing&&scrubKey===g.key,'is-search-match':groupSearchMatches(g)>0}">
+  <header class="slot-head"><button v-if="g.done&&expanded===g.key&&!task.completedAt" class="check-circle" :class="{checked:g.lines.every(l=>selected.includes(l.id))}" @click="selectAll(g)" aria-label="全选该货位批次">{{g.lines.every(l=>selected.includes(l.id))?'✓':''}}</button><button class="slot-toggle" @click="activate(g)" :aria-expanded="expanded===g.key"><strong>{{g.slot}}</strong><span class="slot-status">{{g.done?(isReviewTask?'已复盘':'已盘点'):(isReviewTask?'待复盘':'待盘点')}}<small v-if="groupSearchMatches(g)"> · {{groupSearchMatches(g)}}处</small></span></button></header>
+  <div v-for="l in visibleLines(g)" :key="l.id" class="batch-wrap">
+   <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="check-circle" :class="{checked:selected.includes(l.id)}" @click="toggle(l)" :aria-label="'选择重新盘点 '+l.name+' '+l.batch">{{selected.includes(l.id)?'✓':''}}</button>
+   <section :data-line="l.id" class="batch-card" :class="{'batch-active':!g.done&&current===l.id&&expanded===g.key,'review-active':isReviewTask,'batch-done':g.done,'is-search-match':isSearchMatch(l)}">
+    <template v-if="!g.done&&current===l.id&&expanded===g.key"><trace-count v-if="!isReviewTask" :task="task" :line="l" :busy="busy" @finish="complete(l)"/><div v-else class="active-layout"><div class="active-primary"><div class="active-photo-wrap"><img class="active-photo" :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><span v-if="isReviewTask" class="before-chip">盘前数量{{l.before}}</span></div><div class="active-info"><h2>{{l.name}} | {{l.spec}}</h2><p>批号{{l.batch}}/有效期 {{l.expiry}}</p><p v-if="isReviewTask" class="initial-result-chip">{{resultText(l,l.initialAfter,'初盘')}}</p></div></div><div class="active-actions"><label class="after-stack"><span class="after-label">盘后数量</span><button type="button" class="quantity-step step-minus" @click="adjust(l,-1)" aria-label="盘后数量减一">−</button><input :id="'quantity-'+l.id" :value="value(l)" @input="draft(l,$event)" @focus="focus(l,$event)" @blur="blur(l)" @keydown.enter.prevent="complete(l)" inputmode="numeric" autocomplete="off" aria-label="盘后数量" placeholder="请输入" :aria-invalid="!!error"><button type="button" class="quantity-step step-plus" @click="adjust(l,1)" aria-label="盘后数量加一">＋</button></label><button class="next-button" :disabled="busy" @click="complete(l)" :aria-label="(isReviewTask?'复盘':'盘点')+'完成，下一条'"><span>{{isReviewTask?'复盘':'盘点'}}<br>完成</span><i class="next-arrow" aria-hidden="true"></i></button></div></div><p v-if="error" class="field-error" role="alert">{{error}}</p></template>
+    <button v-else class="batch-summary" @click="g.done?activate(g):activate(g,l)"><img :src="l.image||'./assets/m_pic_placeholder.webp'" @error="$event.currentTarget.src='./assets/m_pic_placeholder.webp'" alt="商品图片"><div><h2>{{l.name}} | {{l.spec}}</h2><p>{{l.batch}}/有效期 {{l.expiry}}</p><template v-if="g.done"><template v-if="hasReview(l)&&expanded===g.key"><div class="review-results"><p><b>初盘{{varianceAt(l,l.initialAfter)}}</b><span>{{resultText(l,l.initialAfter).slice(varianceAt(l,l.initialAfter).length)}}</span></p><p><b>复盘{{varianceAt(l,l.after)}}</b><span>{{resultText(l,l.after).slice(varianceAt(l,l.after).length)}}</span></p></div><span class="review-badge" :class="{different:!reviewSame(l)}">初复盘{{reviewSame(l)?'一致':'差异'}}</span></template><p v-else-if="hasReview(l)" class="result-formula review-summary">{{reviewSummary(l)}}</p><p v-else class="blind-count-result">盘后{{l.after}}<span v-if="l.traceRecord"> · 已扫{{l.traceRecord.codes.length}}个追溯码</span></p></template><p v-else-if="isReviewTask">当前数量：{{l.before}}</p></div></button>
+   </section>
+  </div>
+  <button v-if="g.done&&expanded===g.key&&!task.completedAt" class="recount-button" :disabled="!selected.length||busy" @click="recount(g)">重新盘点</button>
+ </article><p class="list-end">{{task.completedAt?'全部盘点完成，可展开货位复核':'已显示全部货位'}}</p>
+ </main></div>`
+};
