@@ -1,0 +1,1 @@
+Figma file T2p4eufqmuUCbUOAdh7a2W node 1946:8772. SVGs exported from nodes 1935:8353, 1935:8491, 1935:8670 via download_assets; paths unchanged. Noto Sans SC 700 controls / Roboto 400 digits subsets from Google Fonts, SIL OFL licenses included.
