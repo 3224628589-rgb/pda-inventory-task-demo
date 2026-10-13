@@ -1,5 +1,5 @@
-import { computed, nextTick, onMounted, onUnmounted, ref } from './vendor/vue.js?v=2026.09.18.4';
-import { countdown, doneCount, isDone, timeText, variance, taskTitle, dateText } from './data.js?v=2026.09.18.4';
+import { computed, nextTick, onMounted, onUnmounted, ref } from './vendor/vue.js?v=2026.10.13.1';
+import { countdown, doneCount, isDone, timeText, variance, taskTitle, dateText } from './data.js?v=2026.10.13.1';
 
 export const PdaNav = {
   props: ['title', 'back', 'action'], emits:['back','action'],
