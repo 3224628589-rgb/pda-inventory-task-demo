@@ -1,5 +1,5 @@
-import {ref,computed,nextTick,onMounted,onUnmounted,watch} from './vendor/vue.js?v=2026.10.13.4';
-import {quantityError} from './data.js?v=2026.10.13.4';
+import {ref,computed,nextTick,onMounted,onUnmounted,watch} from './vendor/vue.js?v=2026.10.14.1';
+import {quantityError} from './data.js?v=2026.10.14.1';
 export const consistencyMessage='若实物有追溯码，请录全追溯码，若实物无追溯码，请留空，不可录入部分追溯码';
 const valid=code=>/^\d{20}$/.test(code||'');
 export function traceDraft(task,line){
@@ -22,6 +22,11 @@ export function traceError(task,line){
  if(filled.some(([i,v])=>d.lookup[i]?.status==='pending'))return '正在核准批号，请稍候';
  if(filled.some(([i,v])=>d.lookup[i]?.status!=='resolved'||d.lookup[i]?.code!==v))return '存在未核准的追溯码，请重试或重新录入';
  return '';
+}
+export function traceReady(task,line){
+ const d=traceDraft(task,line);
+ // Explicitly entered zero and all-empty scanning are the two PRD shortcuts.
+ return d.step===3||(d.step===1&&Number(task.drafts[line.id])===0&&!entries(d).length)||(d.step===2&&!entries(d).length);
 }
 export function traceResult(task,line){
  const d=traceDraft(task,line),filled=entries(d),codes=filled.filter(([i,v])=>d.lookup[i]?.status==='resolved'&&d.lookup[i]?.code===v).map(([i])=>({...d.lookup[i]}));
@@ -80,7 +85,9 @@ export const TraceCount={
   function back(){if(props.busy||sliding.value)return;changeStep(Math.max(1,state.value.step-1))}
   function enterScan(){
    const d=state.value;for(const key of Object.keys(d.lookup))if(Number(key)>=target.value)delete d.lookup[key];
-   for(const key of Object.keys(d.values))if(Number(key)>=target.value)delete d.values[key];d.count=target.value;resizeConfirm.value=false;changeStep(2);
+   for(const key of Object.keys(d.values))if(Number(key)>=target.value)delete d.values[key];d.count=target.value;resizeConfirm.value=false;
+   if(target.value===0){document.activeElement?.blur();emit('finish');return}
+   changeStep(2);
   }
   function next(){
    if(props.busy||sliding.value)return;
@@ -90,7 +97,7 @@ export const TraceCount={
     enterScan();return;
    }
    error.value=traceError(props.task,props.line);if(error.value){if(error.value===consistencyMessage)focusRow(firstIncomplete());return}
-   if(state.value.step===2){document.activeElement?.blur();changeStep(3);return}
+   if(state.value.step===2){document.activeElement?.blur();if(!filled.value.length){emit('finish');return}changeStep(3);return}
    emit('finish');
   }
   function sample(index){

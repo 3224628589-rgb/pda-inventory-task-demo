@@ -101,7 +101,7 @@
 .next-button,.batch-active.review-active .next-button{width:58px;min-height:105px;height:auto;flex:1;border-radius:7px;padding:10px 9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;font-size:20px;line-height:26px}
 .next-button span{white-space:nowrap}
 .next-arrow{width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:13px solid #fff}
-.blind-count-result{color:#fc641f!important;font-weight:600}
+.blind-count-result{color:#71727f!important;font-weight:600}
 .batch-active>.field-error{margin:8px 0 0}
 .return-current{position:absolute;left:50%;z-index:6;display:flex;align-items:center;gap:7px;min-height:40px;padding:8px 15px;border-radius:22px;background:#fff;color:#fc641f;box-shadow:0 5px 18px #52220730,0 0 0 1px #ffb17f;font-size:14px;font-weight:600;transform:translateX(-50%)}
 .return-current.is-top{top:10px}.return-current.is-bottom{bottom:10px}

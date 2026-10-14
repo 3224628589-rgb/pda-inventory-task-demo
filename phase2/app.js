@@ -1,8 +1,8 @@
-import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.10.13.4';
-import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.10.13.4';
-import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.10.13.4';
+import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.10.14.1';
+import { createFixture, createLargeTask, createRealInventoryTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.10.14.1';
+import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.10.14.1';
 
-import { InventoryFlow } from './inventory-flow.js?v=2026.10.13.4';
+import { InventoryFlow } from './inventory-flow.js?v=2026.10.14.1';
 const SESSION_KEY = 'pda-inventory-phase2-v1';
 function readState() {
   let state;
