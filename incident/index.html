@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PDA 盘点 · 事故优化演示</title>
+</head>
+<body>
+  <div class="preview-heading"><strong>PDA 盘点 · 事故优化</strong><span>货位实时补入 · 零库存确认 · <span id="demo-version">版本加载中</span></span></div>
+  <div id="app" v-cloak></div>
+  <p class="preview-note">合成数据演示 · 从“我的 → 盘点 → 盘点任务 → 季度全店盘点”进入</p>
+  <aside class="demo-tools" aria-label="演示工具"><b>演示工具（PDA 业务画面外）</b><button id="simulate-arrival">模拟盘点途中同货位再入库新批号</button><button id="simulate-failure">切换货位刷新失败</button><button id="reset-demo">重置演示</button><small id="tool-status"></small></aside>
+  <script type="module">
+    const response = await fetch(`./version.json?check=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('无法读取 Demo 版本登记');
+    const release = await response.json();
+    window.PDA_DEMO_RELEASE = release;
+    document.querySelector('#demo-version').textContent = `v${release.version}`;
+    const stylesheet = document.createElement('link');
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = `./style.css?v=${encodeURIComponent(release.version)}`;
+    document.head.append(stylesheet);
+    await new Promise(resolve => { stylesheet.onload = resolve; stylesheet.onerror = resolve; });
+    await import(`./app.js?v=${encodeURIComponent(release.version)}`);
+    const status=document.querySelector('#tool-status');
+    document.querySelector('#simulate-arrival').onclick=()=>{window.dispatchEvent(new CustomEvent('demo-add-stock'));status.textContent='已模拟入库；重新展开 R-06-02-07-01 货位可补入新批号。'};
+    document.querySelector('#simulate-failure').onclick=()=>{window.dispatchEvent(new CustomEvent('demo-toggle-failure'));status.textContent=status.textContent==='已启用刷新失败。'?'已恢复正常刷新。':'已启用刷新失败。';};
+    document.querySelector('#reset-demo').onclick=()=>{sessionStorage.removeItem('pda-inventory-incident-v1');location.hash='/mine';location.reload()};
+  </script>
+</body>
+</html>
