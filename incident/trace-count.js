@@ -1,5 +1,5 @@
-import {ref,computed,nextTick,onMounted,onUnmounted,watch} from './vendor/vue.js?v=2026.10.31.1';
-import {quantityError} from './data.js?v=2026.10.31.1';
+import {ref,computed,nextTick,onMounted,onUnmounted,watch} from './vendor/vue.js?v=2026.10.31.2';
+import {quantityError} from './data.js?v=2026.10.31.2';
 export const consistencyMessage='若实物有追溯码，请录全追溯码，若实物无追溯码，请留空，不可录入部分追溯码';
 const valid=code=>/^\d{20}$/.test(code||'');
 export function traceDraft(task,line){

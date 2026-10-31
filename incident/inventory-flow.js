@@ -1,6 +1,6 @@
-import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.10.31.1';
-import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.10.31.1';
-import {TraceCount,traceError,traceReady,traceResult} from './trace-count.js?v=2026.10.31.1';
+import {ref,computed,watch,nextTick,onMounted,onUnmounted} from './vendor/vue.js?v=2026.10.31.2';
+import {orderedLines,quantityError,timeText,variance,varianceAt,resultText} from './data.js?v=2026.10.31.2';
+import {TraceCount,traceError,traceReady,traceResult} from './trace-count.js?v=2026.10.31.2';
 export const InventoryFlow={
  components:{TraceCount},
  props:['task'],emits:['notice','finished'],

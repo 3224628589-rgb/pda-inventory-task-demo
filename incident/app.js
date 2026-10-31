@@ -1,8 +1,8 @@
-import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.10.31.1';
-import { createFixture, createLargeTask, createQuarterlyTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.10.31.1';
-import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.10.31.1';
+import { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from './vendor/vue.js?v=2026.10.31.2';
+import { createFixture, createLargeTask, createQuarterlyTask, createReviewTask, countdown, doneCount, isDone, orderedLines, quantityError, timeText, variance, taskTitle } from './data.js?v=2026.10.31.2';
+import { PdaNav, GradientButton, EmptyState, SearchField, TaskCard, InventoryCard, BottomSheet } from './components.js?v=2026.10.31.2';
 
-import { InventoryFlow } from './inventory-flow.js?v=2026.10.31.1';
+import { InventoryFlow } from './inventory-flow.js?v=2026.10.31.2';
 const SESSION_KEY = 'pda-inventory-incident-v1';
 function readState() {
   let state;
@@ -71,6 +71,7 @@ createApp({
     }));
     function notify(message){toast.value=message;clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.value='',2300)}
     function demoAddStock(){const q=state.tasks.find(t=>t.id==='tquarter');if(!q)return;if(q.liveStock.some(l=>l.id==='q-later')){notify('演示新批号已在当前库存中');return}q.liveStock.push({id:'q-later',productId:'q1',name:'氟比洛芬凝胶贴膏',spec:'40mg×4贴',unit:'盒',brand:'演示药业',barcode:'6900000000001',expiry:'2028-06-30',slot:'R-06-02-07-01',batch:'036047',before:18,currentQuantity:18,occupied:0,after:null,countedAt:null});notify('模拟新批号已入库，重新展开该货位后刷新')}
+    function demoReplenishZero(){const q=state.tasks.find(t=>t.id==='tquarter');if(!q)return;const line=q.liveStock.find(l=>l.id==='q-zero');if(!line)return;line.currentQuantity=5;notify('模拟零库存明细补货，重新展开 B-01-01-03 查看')}
     function demoToggleFailure(){const q=state.tasks.find(t=>t.id==='tquarter');if(!q)return;q.simulateRefreshFailure=!q.simulateRefreshFailure;notify(q.simulateRefreshFailure?'演示：货位刷新失败':'已恢复货位刷新')}
     function persist(){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(state))}catch{notify('浏览器存储不可用，刷新后进度会重置')}}
     watch(state,persist,{deep:true});
@@ -120,8 +121,8 @@ createApp({
       finally{checkingVersion.value=false}
     }
     const sheetTitle=computed(()=>({batches:sheetProduct.value?.slot?'选择货位商品批次':'选择商品批次',count:'输入盘后数量',scan:'扫描商品 / 货位','history-detail':'临时盘点详情',version:'版本管理'})[sheet.value]);
-    onMounted(()=>{window.addEventListener('hashchange',onHash);window.addEventListener('demo-add-stock',demoAddStock);window.addEventListener('demo-toggle-failure',demoToggleFailure);ticker=setInterval(()=>now.value=Date.now(),1000);persist()});
-    onUnmounted(()=>{window.removeEventListener('hashchange',onHash);window.removeEventListener('demo-add-stock',demoAddStock);window.removeEventListener('demo-toggle-failure',demoToggleFailure);clearInterval(ticker);clearTimeout(searchTimer);clearTimeout(toastTimer);clearTimeout(busyTimer)});
+    onMounted(()=>{window.addEventListener('hashchange',onHash);window.addEventListener('demo-add-stock',demoAddStock);window.addEventListener('demo-replenish-zero',demoReplenishZero);window.addEventListener('demo-toggle-failure',demoToggleFailure);ticker=setInterval(()=>now.value=Date.now(),1000);persist()});
+    onUnmounted(()=>{window.removeEventListener('hashchange',onHash);window.removeEventListener('demo-add-stock',demoAddStock);window.removeEventListener('demo-replenish-zero',demoReplenishZero);window.removeEventListener('demo-toggle-failure',demoToggleFailure);clearInterval(ticker);clearTimeout(searchTimer);clearTimeout(toastTimer);clearTimeout(busyTimer)});
     return{notify,release,state,page,title,task,taskTab,now,query,historyQuery,historyDate,visibleTasks,taskCounts,lines,goods,historyRows,sheet,sheetTitle,sheetProduct,selectedStock,selectedHistory,batchOptions,temporaryQuantity,temporaryError,savingTemp,checkingVersion,scanCode,toast,inventoryFlow,doneCount,isDone,countdown,timeText,variance,taskTitle,navigate,goBack,openTask,submitTask,search,selectGoods,selectBatch,closeSheet,cancelCount,saveTemporary,openScan,submitScan,openHistory,checkVersion};
   },
   template:`<div class="pda-app">
